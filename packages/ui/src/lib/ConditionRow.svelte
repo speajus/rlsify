@@ -43,10 +43,13 @@
     if (!selectedTableName && availableTables.length > 0) {
       const baseTable = availableTables[0];
       selectedTableName = baseTable.table.name;
-      onUpdate({
-        tablePath: baseTable.path,
-        field: ''
-      });
+      // Only reset the field if the condition doesn't already have one
+      if (!condition.field) {
+        onUpdate({
+          tablePath: baseTable.path,
+          field: ''
+        });
+      }
     }
   });
 

@@ -15,7 +15,7 @@
 
   // Initialize mode based on the policy content
   let usingEditorMode = $state<'sql' | 'json' | 'visual'>(
-   
+
        'visual'
   );
 
@@ -90,7 +90,7 @@
           class="mode-btn {usingEditorMode === 'sql' ? 'active' : ''}"
           onclick={() => {
             usingEditorMode = 'sql';
-            updatePolicy('usingExpression', null);
+            // Don't clear the expression - just switch the view mode
           }}
         >
           SQL
@@ -139,6 +139,7 @@
         baseTable={baseTable}
         expression={policy.usingExpression}
         onUpdate={updateUsingExpression}
+        debugLabel="USING"
       />
     {/if}
   </div>
@@ -151,7 +152,7 @@
           class="mode-btn {checkEditorMode === 'sql' ? 'active' : ''}"
           onclick={() => {
             checkEditorMode = 'sql';
-            updatePolicy('withCheckExpression', null);
+            // Don't clear the expression - just switch the view mode
           }}
         >
           SQL
@@ -200,6 +201,7 @@
         baseTable={baseTable}
         expression={policy.withCheckExpression}
         onUpdate={updateCheckExpression}
+        debugLabel="WITH_CHECK"
       />
     {/if}
   </div>

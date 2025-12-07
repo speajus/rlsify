@@ -7,9 +7,10 @@
     baseTable: string;
     expression?: PermissionExpression ;
     onUpdate: (expr: PermissionExpression | null) => void;
+    debugLabel?: string;
   }
-  
-  let { baseTable, expression, onUpdate }: Props = $props();
+
+  let { baseTable, expression, onUpdate, debugLabel = 'VisualQueryBuilder' }: Props = $props();
   
   interface Condition {
     id: string;
@@ -20,11 +21,17 @@
     valueType: 'literal' | 'session' | 'column';
   }
   
+  // Parse the initial expression into conditions
+  // We need to declare state variables first, then parse
   let conditions = $state<Condition[]>([]);
   let logicMode = $state<'and' | 'or'>('and');
-  let lastParsedExpression = $state<PermissionExpression | undefined>(undefined);
-  let isLoadingFromExpression = $state(false);
-  
+
+  // Track the last expression we parsed to avoid infinite loops
+  let lastParsedExpression: PermissionExpression | undefined = undefined;
+
+  // Flag to prevent updateExpression from being called during initialization
+  let isLoadingFromExpression = false;
+
   // Get available tables through relationships
   let availableTables = $derived.by(() => {
     if (!$schema || !baseTable) return [];
@@ -68,7 +75,23 @@
     
     return Array.from(tables.values());
   });
-  
+
+  // Initialize conditions from expression whenever it changes
+  $effect(() => {
+    // Only parse if the expression has changed
+    if (expression && expression !== lastParsedExpression) {
+      isLoadingFromExpression = true;
+      const { conditions: parsed, logicMode: mode } = parseExpressionToConditions(expression);
+      conditions = parsed;
+      logicMode = mode;
+      lastParsedExpression = expression;
+      // Use setTimeout to ensure all child components have finished initializing
+      setTimeout(() => {
+        isLoadingFromExpression = false;
+      }, 0);
+    }
+  });
+
   function addCondition() {
     conditions.push({
       id: crypto.randomUUID(),
@@ -84,7 +107,7 @@
     conditions = conditions.filter(c => c.id !== id);
     updateExpression();
   }
-  
+
   function updateCondition(id: string, updates: Partial<Condition>) {
     const index = conditions.findIndex(c => c.id === id);
     if (index !== -1) {
@@ -94,49 +117,48 @@
   }
   
   function updateExpression() {
-    console.log('VisualQueryBuilder: updateExpression called, conditions.length =', conditions.length);
-    console.trace('updateExpression stack trace');
+    // Don't update if we're currently loading from an expression
+    if (isLoadingFromExpression) {
+      return;
+    }
+
     if (conditions.length === 0) {
-      console.log('VisualQueryBuilder: calling onUpdate(null) because conditions.length === 0');
       onUpdate(null);
       return;
     }
-    
+
     const fieldExpressions = conditions
       .filter(c => c.field && c.operator)
       .map(c => {
-        const fieldName = c.tablePath.length > 1 
+        const fieldName = c.tablePath.length > 1
           ? `${c.tablePath.slice(1).join('.')}.${c.field}`
           : c.field;
-        
+
         let value: any = c.value;
         if (c.valueType === 'session') {
           value = { var: c.value, type: 'uuid' };
         } else if (c.valueType === 'column') {
           value = { column: c.value };
         }
-        
+
         return {
           [fieldName]: {
             [c.operator]: value
           }
         };
       });
-    
+
     if (fieldExpressions.length === 0) {
       onUpdate(null);
       return;
     }
-    
+
     if (fieldExpressions.length === 1) {
-      console.log('VisualQueryBuilder: calling onUpdate with single expression:', fieldExpressions[0]);
       onUpdate(fieldExpressions[0]);
     } else {
-      const expr = {
+      onUpdate({
         [`_${logicMode}`]: fieldExpressions
-      };
-      console.log('VisualQueryBuilder: calling onUpdate with combined expression:', expr);
-      onUpdate(expr);
+      });
     }
   }
   
@@ -146,20 +168,21 @@
   }
   
   // Parse expression into conditions for display
-  function parseExpressionToConditions(expr: PermissionExpression | undefined): Condition[] {
-    if (!expr) return [];
+  function parseExpressionToConditions(expr: PermissionExpression | undefined): { conditions: Condition[], logicMode: 'and' | 'or' } {
+    if (!expr) return { conditions: [], logicMode: 'and' };
 
     const parsed: Condition[] = [];
+    let mode: 'and' | 'or' = 'and';
 
     // Handle _and / _or at top level
     if ('_and' in expr && Array.isArray(expr._and)) {
-      logicMode = 'and';
+      mode = 'and';
       expr._and.forEach((item: any) => {
         const cond = parseFieldExpression(item);
         if (cond) parsed.push(cond);
       });
     } else if ('_or' in expr && Array.isArray(expr._or)) {
-      logicMode = 'or';
+      mode = 'or';
       expr._or.forEach((item: any) => {
         const cond = parseFieldExpression(item);
         if (cond) parsed.push(cond);
@@ -170,7 +193,7 @@
       if (cond) parsed.push(cond);
     }
 
-    return parsed;
+    return { conditions: parsed, logicMode: mode };
   }
 
   function parseFieldExpression(expr: any): Condition | null {
@@ -206,46 +229,19 @@
       }
     }
 
+    const tableName = baseTable.split('.').pop() || baseTable;
+
     return {
       id: crypto.randomUUID(),
       field: fieldName,
-      tablePath: [baseTable.split('.').pop() || baseTable],
+      tablePath: [tableName],
       operator,
       value: actualValue,
       valueType
     };
   }
 
-  // Parse expression when it changes
-  $effect(() => {
-    // Only parse if expression has changed (to avoid infinite loops)
-    if (expression !== lastParsedExpression) {
-      console.log('VisualQueryBuilder: expression changed', { expression, lastParsedExpression });
-      lastParsedExpression = expression;
-      isLoadingFromExpression = true;
 
-      if (expression) {
-        const parsed = parseExpressionToConditions(expression);
-        console.log('VisualQueryBuilder: parsed conditions', parsed);
-        if (parsed.length > 0) {
-          conditions = parsed;
-          console.log('VisualQueryBuilder: conditions after assignment', conditions, 'length:', conditions.length);
-        } else {
-          // Expression exists but couldn't be parsed (e.g., _exists) - clear conditions
-          console.log('VisualQueryBuilder: could not parse expression, clearing conditions');
-          conditions = [];
-        }
-      } else {
-        // No expression - clear conditions
-        conditions = [];
-      }
-
-      // Reset flag after a tick to allow the UI to update
-      setTimeout(() => {
-        isLoadingFromExpression = false;
-      }, 0);
-    }
-  });
 </script>
 
 <div class="visual-query-builder">
@@ -254,10 +250,6 @@
     <p class="hint">Build permission rules without writing SQL</p>
   </div>
   
-  <div style="background: #333; padding: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
-    DEBUG: conditions.length = {conditions.length}, conditions = {JSON.stringify(conditions)}
-  </div>
-
   {#if conditions.length > 1}
     <div class="logic-toggle">
       <span>Match</span>
@@ -269,15 +261,13 @@
   {/if}
   
   <div class="conditions-list">
-    {#each conditions as condition (condition.id)}
+    {#each conditions || [] as condition (condition.id)}
       <ConditionRow
         {condition}
         {availableTables}
         onUpdate={(updates) => updateCondition(condition.id, updates)}
         onRemove={() => removeCondition(condition.id)}
       />
-    {:else}
-      <p style="color: #888; padding: 1rem;">No conditions (conditions.length = {conditions.length})</p>
     {/each}
   </div>
   
