@@ -1,0 +1,52 @@
+{
+  "name": "@speajus/rlsify-supabase",
+  "version": "0.1.0",
+  "description": "Supabase adapter for rlsify - PostgreSQL RLS policy generation",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "supabase",
+    "postgresql",
+    "rls",
+    "row-level-security",
+    "security"
+  ],
+  "author": "Justin Spears <speajus@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@speajus/diblob": "^1.0.0",
+    "@speajus/rlsify-core": "workspace:*",
+    "@speajus/rlsify-types": "workspace:*",
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  },
+  "peerDependencies": {
+    "@supabase/supabase-js": "^2.0.0"
+  }
+}
+

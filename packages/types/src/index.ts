@@ -1,0 +1,487 @@
+/**
+ * Core types for rlsify - PostgreSQL Row-Level Security policy generation
+ */
+
+// ============================================================================
+// Policy Configuration Types
+// ============================================================================
+
+/**
+ * SQL command types for RLS policies
+ */
+export type PolicyCommand = 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'ALL';
+
+// ============================================================================
+// Permission Expression Types (JSON-based, Hasura-inspired)
+// ============================================================================
+
+/**
+ * Comparison operators for permission expressions
+ */
+export type ComparisonOperator =
+  | '_eq'      // Equal
+  | '_neq'     // Not equal
+  | '_gt'      // Greater than
+  | '_gte'     // Greater than or equal
+  | '_lt'      // Less than
+  | '_lte'     // Less than or equal
+  | '_in'      // In array
+  | '_nin'     // Not in array
+  | '_like'    // SQL LIKE
+  | '_ilike'   // SQL ILIKE (case-insensitive)
+  | '_nlike'   // SQL NOT LIKE
+  | '_nilike'  // SQL NOT ILIKE
+  | '_is_null' // IS NULL
+  | '_similar' // SQL SIMILAR TO
+  | '_nsimilar'; // SQL NOT SIMILAR TO
+
+/**
+ * Logical operators for combining expressions
+ */
+export type LogicalOperator = '_and' | '_or' | '_not';
+
+/**
+ * Session variable reference (e.g., "auth.uid()", "current_user", "jwt.claim.org_id")
+ */
+export interface SessionVariable {
+  /** The session variable name/function */
+  var: string;
+
+  /** Optional type hint for validation */
+  type?: 'uuid' | 'text' | 'integer' | 'boolean' | 'jsonb';
+}
+
+/**
+ * Column reference in permission expression
+ */
+export interface ColumnReference {
+  /** Column name, optionally with table prefix (e.g., "user_id" or "posts.user_id") */
+  column: string;
+}
+
+/**
+ * Value in permission expression (can be literal, session variable, or column reference)
+ */
+export type PermissionValue =
+  | string
+  | number
+  | boolean
+  | null
+  | SessionVariable
+  | ColumnReference
+  | PermissionValue[];
+
+/**
+ * Comparison expression
+ */
+export type ComparisonExpression = {
+  [K in ComparisonOperator]?: PermissionValue;
+};
+
+/**
+ * Field expression (column with comparison)
+ */
+export interface FieldExpression {
+  [fieldName: string]: ComparisonExpression | PermissionExpression;
+}
+
+/**
+ * Exists expression for checking related/unrelated tables
+ */
+export interface ExistsExpression {
+  _exists: {
+    /** Table to check */
+    _table: string | { schema: string; name: string };
+
+    /** Where condition */
+    _where: PermissionExpression;
+  };
+}
+
+/**
+ * Permission expression (recursive boolean expression)
+ */
+export type PermissionExpression =
+  | FieldExpression
+  | { _and: PermissionExpression[] }
+  | { _or: PermissionExpression[] }
+  | { _not: PermissionExpression }
+  | ExistsExpression;
+
+/**
+ * Individual RLS policy definition
+ */
+export interface PolicyDefinition {
+  /** Unique name for the policy */
+  name: string;
+
+  /** SQL command this policy applies to */
+  command: PolicyCommand;
+
+  /** SQL expression for USING clause (for SELECT, UPDATE, DELETE) - legacy string format */
+  using?: string;
+
+  /** SQL expression for WITH CHECK clause (for INSERT, UPDATE) - legacy string format */
+  withCheck?: string;
+
+  /** JSON-based permission expression for USING clause (preferred over string) */
+  usingExpression?: PermissionExpression;
+
+  /** JSON-based permission expression for WITH CHECK clause (preferred over string) */
+  withCheckExpression?: PermissionExpression;
+
+  /** Optional roles this policy applies to (defaults to PUBLIC) */
+  roles?: string[];
+
+  /** Whether this policy is permissive (default) or restrictive */
+  permissive?: boolean;
+}
+
+/**
+ * Foreign key relationship definition
+ */
+export interface ForeignKeyRelation {
+  /** Source table name */
+  sourceTable: string;
+
+  /** Source column name */
+  sourceColumn: string;
+
+  /** Target table name */
+  targetTable: string;
+
+  /** Target column name */
+  targetColumn: string;
+
+  /** Optional constraint name */
+  constraintName?: string;
+}
+
+/**
+ * Join definition for multi-table policies
+ */
+export interface JoinDefinition {
+  /** Table to join */
+  table: string;
+
+  /** Join type (INNER, LEFT, RIGHT, FULL) */
+  type?: 'INNER' | 'LEFT' | 'RIGHT' | 'FULL';
+
+  /**
+   * Join condition. If not provided, will attempt to use foreign key relationships.
+   * Can use simple transform syntax like "user_id = user.id"
+   */
+  on?: string;
+
+  /** Alias for the joined table */
+  alias?: string;
+}
+
+/**
+ * Complete RLS policy configuration for a table
+ */
+export interface RLSPolicyConfig {
+  /** Schema version for migration support */
+  version: string;
+
+  /** Target table name */
+  table: string;
+
+  /** Optional schema name (defaults to 'public') */
+  schema?: string;
+
+  /** Array of policy definitions */
+  policies: PolicyDefinition[];
+
+  /** Optional joins for multi-table policies */
+  joins?: JoinDefinition[];
+
+  /** Whether to enable RLS on the table (default: true) */
+  enableRLS?: boolean;
+
+  /** Whether to force RLS for table owner (default: false) */
+  forceRLS?: boolean;
+
+  /** Metadata for tracking */
+  metadata?: {
+    createdAt?: string;
+    updatedAt?: string;
+    createdBy?: string;
+    description?: string;
+  };
+}
+
+// ============================================================================
+// Schema Introspection Types
+// ============================================================================
+
+/**
+ * Database column information
+ */
+export interface ColumnInfo {
+  name: string;
+  type: string;
+  nullable: boolean;
+  defaultValue?: string;
+  isPrimaryKey: boolean;
+  isForeignKey: boolean;
+}
+
+/**
+ * Database table information
+ */
+export interface TableInfo {
+  schema: string;
+  name: string;
+  columns: ColumnInfo[];
+  foreignKeys: ForeignKeyRelation[];
+  primaryKeys: string[];
+}
+
+/**
+ * Database schema information
+ */
+export interface SchemaInfo {
+  tables: TableInfo[];
+  foreignKeys: ForeignKeyRelation[];
+}
+
+// ============================================================================
+// Validation Types
+// ============================================================================
+
+/**
+ * Validation error
+ */
+export interface ValidationError {
+  field: string;
+  message: string;
+  code: string;
+}
+
+/**
+ * Validation result
+ */
+export interface ValidationResult {
+  valid: boolean;
+  errors: ValidationError[];
+  warnings?: ValidationError[];
+}
+
+// ============================================================================
+// Generation Types
+
+
+// ============================================================================
+// Template Types
+// ============================================================================
+
+/**
+ * Common RLS policy template types
+ */
+export type TemplateType =
+  | 'user-owned'           // Resources owned by user (created_by = auth.uid())
+  | 'role-based'           // Role-based access (auth.role() = 'admin')
+  | 'organization'         // Organization/tenant isolation
+  | 'team-based'           // Team-based access
+  | 'public-private'       // Public/private content
+  | 'hierarchical'         // Hierarchical permissions
+  | 'time-based';          // Time-based access (subscriptions, etc.)
+
+/**
+ * Template variable for customization
+ */
+export interface TemplateVariable {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'column' | 'table';
+  description: string;
+  defaultValue?: string | number | boolean;
+  required?: boolean;
+}
+
+/**
+ * RLS policy template
+ */
+export interface PolicyTemplate {
+  /** Template identifier */
+  id: string;
+
+  /** Template type */
+  type: TemplateType;
+
+  /** Human-readable name */
+  name: string;
+
+  /** Description of what this template does */
+  description: string;
+
+  /** Variables that can be customized */
+  variables: TemplateVariable[];
+
+  /** Template configuration (with variable placeholders) */
+  config: Omit<RLSPolicyConfig, 'version' | 'metadata'>;
+
+  /** Example usage */
+  example?: string;
+}
+
+// ============================================================================
+// Migration Types
+// ============================================================================
+
+/**
+ * Migration file format
+ */
+export interface MigrationFile {
+  /** Migration name */
+  name: string;
+
+  /** Timestamp */
+  timestamp: string;
+
+  /** Up migration SQL */
+  up: string;
+
+  /** Down migration SQL */
+  down: string;
+
+  /** Optional description */
+  description?: string;
+}
+
+// ============================================================================
+// UI Bridge Types
+// ============================================================================
+
+/**
+ * Bridge interface between UI and core library
+ */
+export interface UIBridge {
+  /** Generate SQL preview from configuration */
+  previewPolicies(config: RLSPolicyConfig): Promise<GeneratedSQL[]>;
+
+  /** Save configuration to database */
+  saveConfig(config: RLSPolicyConfig): Promise<void>;
+
+  /** Load configuration from database */
+  loadConfig(name: string): Promise<RLSPolicyConfig>;
+
+  /** Validate configuration */
+  validateConfig(config: RLSPolicyConfig): Promise<ValidationResult>;
+
+  /** Get schema information for introspection */
+  getSchemaInfo(schema?: string): Promise<SchemaInfo>;
+
+  /** Get foreign key relationships for a table */
+  getForeignKeys(table: string, schema?: string): Promise<ForeignKeyRelation[]>;
+
+  /** Test policy against sample data */
+  testPolicy(config: RLSPolicyConfig, testData: TestScenario): Promise<TestResult>;
+}
+
+/**
+ * Test scenario for policy simulation
+ */
+export interface TestScenario {
+  /** User context for testing */
+  user: {
+    id?: string;
+    role?: string;
+    claims?: Record<string, unknown>;
+  };
+
+  /** Operation being tested */
+  operation: PolicyCommand;
+
+  /** Sample data to test against */
+  data: Record<string, unknown>;
+
+  /** Expected result */
+  expected: 'allow' | 'deny';
+}
+
+/**
+ * Test result
+ */
+export interface TestResult {
+  /** Whether test passed */
+  passed: boolean;
+
+  /** Actual result */
+  actual: 'allow' | 'deny';
+
+  /** Expected result */
+  expected: 'allow' | 'deny';
+
+  /** SQL that was evaluated */
+  sql: string;
+
+  /** Error message if test failed */
+  error?: string;
+}
+
+// ============================================================================
+// Supabase-Specific Types
+// ============================================================================
+
+/**
+ * Supabase auth context
+ */
+export interface SupabaseAuthContext {
+  /** User ID from auth.uid() */
+  uid?: string;
+
+  /** User role from auth.role() */
+  role?: string;
+
+  /** JWT claims from auth.jwt() */
+  jwt?: Record<string, unknown>;
+}
+
+/**
+ * Supabase-specific policy configuration
+ */
+export interface SupabasePolicyConfig extends RLSPolicyConfig {
+  /** Use Supabase auth helpers */
+  useAuthHelpers?: boolean;
+
+  /** Supabase-specific metadata */
+  supabase?: {
+    /** Project reference */
+    projectRef?: string;
+
+    /** Whether to use Supabase realtime */
+    realtime?: boolean;
+  };
+}
+
+// ============================================================================
+
+/**
+ * Generated SQL statement
+ */
+export interface GeneratedSQL {
+  /** The SQL statement */
+  sql: string;
+
+  /** Type of statement */
+  type: 'CREATE_POLICY' | 'ALTER_TABLE' | 'DROP_POLICY' | 'ENABLE_RLS' | 'DISABLE_RLS';
+
+  /** Optional description */
+  description?: string;
+}
+
+/**
+ * Policy generation result
+ */
+export interface PolicyGenerationResult {
+  /** Generated SQL statements */
+  statements: GeneratedSQL[];
+
+  /** Validation result */
+  validation: ValidationResult;
+
+  /** Configuration that was used */
+  config: RLSPolicyConfig;
+}
+

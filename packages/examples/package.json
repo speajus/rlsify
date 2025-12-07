@@ -1,0 +1,29 @@
+{
+  "name": "@speajus/rlsify-examples",
+  "version": "0.1.0",
+  "description": "Examples for using rlsify core library",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "basic": "tsx src/basic-example.ts",
+    "templates": "tsx src/template-example.ts",
+    "joins": "tsx src/join-example.ts",
+    "migration": "tsx src/migration-example.ts"
+  },
+  "keywords": [
+    "examples",
+    "rls",
+    "postgresql"
+  ],
+  "author": "Justin Spears <speajus@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@speajus/rlsify-core": "workspace:*",
+    "@speajus/rlsify-types": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}
+

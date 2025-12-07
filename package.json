@@ -1,0 +1,43 @@
+{
+  "name": "@speajus/rlsify",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeScript monorepo for simplifying PostgreSQL Row-Level Security (RLS) policies",
+  "keywords": [
+    "postgresql",
+    "rls",
+    "row-level-security",
+    "supabase",
+    "security",
+    "database"
+  ],
+  "author": "Justin Spears <speajus@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jspears/rlsify.git"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0",
+  "scripts": {
+    "build": "pnpm -r --filter='./packages/*' run build",
+    "dev": "pnpm -r --parallel run dev",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "clean": "pnpm -r run clean && rm -rf node_modules",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "pnpm build && changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  }
+}
+

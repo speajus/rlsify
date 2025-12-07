@@ -1,0 +1,38 @@
+{
+  "name": "@speajus/rlsify-types",
+  "version": "0.1.0",
+  "description": "Shared TypeScript types for rlsify",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "typescript",
+    "types",
+    "rls",
+    "postgresql"
+  ],
+  "author": "Justin Spears <speajus@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3"
+  }
+}
+

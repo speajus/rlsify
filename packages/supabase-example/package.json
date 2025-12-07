@@ -1,0 +1,32 @@
+{
+  "name": "@speajus/rlsify-supabase-example",
+  "version": "0.1.0",
+  "description": "Supabase-specific examples for rlsify",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "basic": "tsx src/basic-supabase.ts",
+    "auth": "tsx src/auth-example.ts",
+    "migration": "tsx src/migration-example.ts",
+    "apply": "tsx src/apply-example.ts"
+  },
+  "keywords": [
+    "examples",
+    "supabase",
+    "rls"
+  ],
+  "author": "Justin Spears <speajus@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@speajus/rlsify-supabase": "workspace:*",
+    "@speajus/rlsify-types": "workspace:*",
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}
+
