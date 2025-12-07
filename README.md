@@ -23,7 +23,39 @@ RLSify is a monorepo containing tools for defining, generating, and managing Pos
 
 ## 🚀 Quick Start
 
-### Installation
+### Option 1: Docker (Recommended) 🐳
+
+The fastest way to try RLSify with a complete working environment including PostgreSQL and sample data:
+
+```bash
+# 1. Copy environment variables
+cp .env.example .env
+
+# 2. Start PostgreSQL and UI
+make up
+# Or: docker-compose up -d
+
+# 3. Open the UI
+open http://localhost:5174
+
+# 4. Run the interactive demo
+./docker/scripts/demo-workflow.sh
+```
+
+**What you get:**
+- ✅ PostgreSQL 16 with Row-Level Security enabled
+- ✅ Multi-tenant schema (organizations → teams → users)
+- ✅ Sample data (3 orgs, 7 users, 4 teams)
+- ✅ RLSify UI with Visual Builder, Templates, and SQL editor
+- ✅ Auth helpers for testing RLS policies
+- ✅ Interactive demo and test scripts
+
+**Documentation:**
+- [Getting Started Guide](./GETTING_STARTED_DOCKER.md) - 5-minute setup
+- [Complete Docker Guide](./DOCKER.md) - Detailed documentation
+- [Quick Reference](./docker/QUICK_REFERENCE.md) - Common commands
+
+### Option 2: Local Development
 
 ```bash
 # Install pnpm if you haven't already

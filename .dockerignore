@@ -1,0 +1,52 @@
+# Node modules
+node_modules
+**/node_modules
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Build outputs
+dist
+**/dist
+.svelte-kit
+**/.svelte-kit
+build
+**/build
+
+# Development files
+.git
+.gitignore
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+docs
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Testing
+coverage
+.nyc_output
+**/*.test.ts
+**/*.spec.ts
+
+# Misc
+.changeset
+

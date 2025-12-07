@@ -1,0 +1,15 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "RLSify PostgreSQL",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "rlsify",
+      "Username": "rlsify",
+      "SSLMode": "prefer",
+      "Comment": "RLSify development database with multi-tenant schema"
+    }
+  }
+}
+

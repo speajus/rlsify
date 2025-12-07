@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database with RLS support
+  postgres:
+    image: postgres:16-alpine
+    container_name: rlsify-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rlsify}
+      POSTGRES_USER: ${POSTGRES_USER:-rlsify}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rlsify_dev_password}
+      POSTGRES_HOST_AUTH_METHOD: ${POSTGRES_HOST_AUTH_METHOD:-scram-sha-256}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Database initialization scripts
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+      # Persistent data storage
+      - postgres_data:/var/lib/postgresql/data
+      # PostgreSQL configuration
+      - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rlsify} -d ${POSTGRES_DB:-rlsify}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - rlsify-network
+
+  # RLSify UI Application
+  ui:
+    build:
+      context: .
+      dockerfile: docker/ui/Dockerfile
+      args:
+        NODE_VERSION: ${NODE_VERSION:-20}
+    container_name: rlsify-ui
+    restart: unless-stopped
+    environment:
+      # Vite configuration
+      VITE_PORT: ${VITE_PORT:-5174}
+      VITE_HOST: 0.0.0.0
+      # Database connection (for future features)
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rlsify}:${POSTGRES_PASSWORD:-rlsify_dev_password}@postgres:5432/${POSTGRES_DB:-rlsify}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-rlsify}
+      POSTGRES_USER: ${POSTGRES_USER:-rlsify}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rlsify_dev_password}
+    ports:
+      - "${UI_PORT:-5174}:5174"
+    volumes:
+      # Mount source code for hot reload in development
+      - ./packages:/app/packages:cached
+      - ./package.json:/app/package.json:ro
+      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+      - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
+      # Node modules cache
+      - ui_node_modules:/app/node_modules
+      - ui_packages_node_modules:/app/packages/ui/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5174"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - rlsify-network
+    command: sh -c "cd /app && pnpm install && cd packages/ui && pnpm run dev --host 0.0.0.0 --port 5174"
+
+  # pgAdmin for database management (optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: rlsify-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@rlsify.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - rlsify-network
+    profiles:
+      - tools
+
+networks:
+  rlsify-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  ui_node_modules:
+    driver: local
+  ui_packages_node_modules:
+    driver: local
+

@@ -1,0 +1,73 @@
+name: Docker Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docker/**'
+      - 'docker-compose.yml'
+      - '.env.example'
+      - '.github/workflows/docker-test.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker/**'
+      - 'docker-compose.yml'
+      - '.env.example'
+      - '.github/workflows/docker-test.yml'
+
+jobs:
+  test-docker-compose:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up environment
+        run: cp .env.example .env
+
+      - name: Start Docker Compose
+        run: docker-compose up -d
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for PostgreSQL..."
+          timeout 60 bash -c 'until docker-compose exec -T postgres pg_isready -U rlsify; do sleep 2; done'
+          echo "PostgreSQL is ready!"
+          
+          echo "Waiting for UI..."
+          timeout 60 bash -c 'until curl -f http://localhost:5174 > /dev/null 2>&1; do sleep 2; done'
+          echo "UI is ready!"
+
+      - name: Check PostgreSQL schema
+        run: |
+          docker-compose exec -T postgres psql -U rlsify -d rlsify -c "\dt"
+          docker-compose exec -T postgres psql -U rlsify -d rlsify -c "SELECT COUNT(*) FROM organizations;"
+          docker-compose exec -T postgres psql -U rlsify -d rlsify -c "SELECT COUNT(*) FROM users;"
+
+      - name: Test auth helpers
+        run: |
+          docker-compose exec -T postgres psql -U rlsify -d rlsify << 'EOF'
+          SELECT auth.set_user('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+          SELECT * FROM auth.current_user_info;
+          SELECT auth.clear_user();
+          EOF
+
+      - name: Test UI accessibility
+        run: |
+          curl -f http://localhost:5174
+          echo "UI is accessible!"
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== PostgreSQL logs ==="
+          docker-compose logs postgres
+          echo "=== UI logs ==="
+          docker-compose logs ui
+
+      - name: Cleanup
+        if: always()
+        run: docker-compose down -v
+
