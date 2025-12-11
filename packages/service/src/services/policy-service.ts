@@ -7,9 +7,7 @@ import { create } from '@bufbuild/protobuf';
 import type { ServiceImpl } from '@connectrpc/connect';
 import {
   createContainer,
-  policyGeneratorBlob,
   policyValidatorBlob,
-  type PolicyGenerator,
   type PolicyValidator,
 } from '@speajus/rlsify-core';
 import {
@@ -28,6 +26,7 @@ import {
   GetPolicyResponseSchema,
   DeletePolicyResponseSchema,
   RLSPolicyConfigSchema,
+  PolicyDefinitionSchema,
   type PreviewPoliciesRequest,
   type ValidateConfigRequest,
   type ApplyPoliciesRequest,
@@ -40,12 +39,10 @@ import {
 
 export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto> {
   private coreContainer = createContainer();
-  private generator: PolicyGenerator;
   private validator: PolicyValidator;
 
   constructor(private pool: Pool) {
     // Resolve services from the container
-    this.generator = this.coreContainer.resolve(policyGeneratorBlob) as PolicyGenerator;
     this.validator = this.coreContainer.resolve(policyValidatorBlob) as PolicyValidator;
   }
 
@@ -55,14 +52,29 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
       return create(PreviewPoliciesResponseSchema, { statements: [] });
     }
 
-    // Convert proto config to core library format
-    const coreConfig = this.convertProtoConfigToCore(config);
+    // Convert proto config to JSON format for the stored procedure
+    const configJson = this.protoConfigToStoredProcJson(config);
 
-    const result = await this.generator.generate(coreConfig);
-
-    const statements = result.statements.map((stmt) =>
-      this.createGeneratedSQL(stmt)
+    // Call the PostgreSQL stored procedure to generate SQL
+    const result = await this.pool.query<{ generate_policy_sql: string }>(
+      'SELECT rls.generate_policy_sql($1::jsonb)',
+      [JSON.stringify(configJson)]
     );
+
+    const sql = result.rows[0]?.generate_policy_sql || '';
+
+    // Parse the SQL into individual statements
+    const statements = sql
+      .split('\n')
+      .filter((line: string) => line.trim().length > 0)
+      .map((line: string) => {
+        const type = this.inferStatementType(line);
+        return create(GeneratedSQLSchema, {
+          sql: line,
+          type,
+          description: this.generateDescription(line, type),
+        });
+      });
 
     return create(PreviewPoliciesResponseSchema, { statements });
   }
@@ -95,48 +107,75 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
       });
     }
 
-    const coreConfig = this.convertProtoConfigToCore(config);
-    const result = await this.generator.generate(coreConfig);
+    // Convert proto config to JSON format for the stored procedure
+    const configJson = this.protoConfigToStoredProcJson(config);
 
-    if (!result.validation.valid) {
-      return create(ApplyPoliciesResponseSchema, {
-        result: create(PolicyGenerationResultSchema, {
-          statements: [],
-          validation: create(ValidationResultSchema, result.validation),
-          config: config,
-        }),
-        applied: false,
-        error: 'Validation failed',
-      });
-    }
-
-    // If dry run, just return the result without applying
+    // If dry run, just preview the SQL without applying
     if (request.dryRun) {
+      const previewResult = await this.pool.query<{ generate_policy_sql: string }>(
+        'SELECT rls.generate_policy_sql($1::jsonb)',
+        [JSON.stringify(configJson)]
+      );
+
+      const sql = previewResult.rows[0]?.generate_policy_sql || '';
+      const statements = sql
+        .split('\n')
+        .filter((line: string) => line.trim().length > 0)
+        .map((line: string) => {
+          const type = this.inferStatementType(line);
+          return create(GeneratedSQLSchema, {
+            sql: line,
+            type,
+            description: this.generateDescription(line, type),
+          });
+        });
+
       return create(ApplyPoliciesResponseSchema, {
         result: create(PolicyGenerationResultSchema, {
-          statements: result.statements.map((stmt) => this.createGeneratedSQL(stmt)),
-          validation: this.createValidationResult(result.validation),
+          statements,
+          validation: create(ValidationResultSchema, { valid: true, errors: [] }),
           config: config,
         }),
         applied: false,
       });
     }
 
-    // Apply the policies
+    // Apply the policies using the stored procedure
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
 
-      for (const stmt of result.statements) {
-        await client.query(stmt.sql);
-      }
+      // Call the stored procedure to apply policies
+      await client.query(
+        'SELECT rls.apply_policy($1::jsonb)',
+        [JSON.stringify(configJson)]
+      );
 
       await client.query('COMMIT');
 
+      // Get the generated SQL for the response
+      const previewResult = await this.pool.query<{ generate_policy_sql: string }>(
+        'SELECT rls.generate_policy_sql($1::jsonb)',
+        [JSON.stringify(configJson)]
+      );
+
+      const sql = previewResult.rows[0]?.generate_policy_sql || '';
+      const statements = sql
+        .split('\n')
+        .filter((line: string) => line.trim().length > 0)
+        .map((line: string) => {
+          const type = this.inferStatementType(line);
+          return create(GeneratedSQLSchema, {
+            sql: line,
+            type,
+            description: this.generateDescription(line, type),
+          });
+        });
+
       return create(ApplyPoliciesResponseSchema, {
         result: create(PolicyGenerationResultSchema, {
-          statements: result.statements.map((stmt) => this.createGeneratedSQL(stmt)),
-          validation: this.createValidationResult(result.validation),
+          statements,
+          validation: create(ValidationResultSchema, { valid: true, errors: [] }),
           config: config,
         }),
         applied: true,
@@ -181,6 +220,9 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
     }
 
     const row = result.rows[0];
+    if (!row) {
+      throw new Error('Failed to save policy');
+    }
     return create(SavePolicyResponseSchema, {
       policy: this.rowToSavedPolicy(row),
     });
@@ -284,21 +326,42 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
   }
 
   private jsonToProtoConfig(json: Record<string, unknown>) {
-    return create(RLSPolicyConfigSchema, {
-      version: (json.version as string) ?? '1.0',
-      table: (json.table as string) ?? '',
-      schema: json.schema as string | undefined,
-      policies: ((json.policies as Array<Record<string, unknown>>) ?? []).map((p) => ({
+    const policies = ((json.policies as Array<Record<string, unknown>>) ?? []).map((p) => {
+      const policyInit: {
+        name: string;
+        command: number;
+        roles: string[];
+        permissive: boolean;
+        using?: string;
+        withCheck?: string;
+      } = {
         name: (p.name as string) ?? '',
         command: this.reverseMapCommand((p.command as string) ?? 'ALL'),
-        using: p.using as string | undefined,
-        withCheck: p.withCheck as string | undefined,
         roles: (p.roles as string[]) ?? [],
         permissive: (p.permissive as boolean) ?? true,
-      })),
+      };
+      if (p.using) policyInit.using = p.using as string;
+      if (p.withCheck) policyInit.withCheck = p.withCheck as string;
+      return create(PolicyDefinitionSchema, policyInit);
+    });
+
+    const configInit: {
+      version: string;
+      table: string;
+      policies: typeof policies;
+      enableRls: boolean;
+      forceRls: boolean;
+      schema?: string;
+    } = {
+      version: (json.version as string) ?? '1.0',
+      table: (json.table as string) ?? '',
+      policies,
       enableRls: (json.enableRLS as boolean) ?? true,
       forceRls: (json.forceRLS as boolean) ?? false,
-    });
+    };
+    if (json.schema) configInit.schema = json.schema as string;
+
+    return create(RLSPolicyConfigSchema, configInit);
   }
 
   private reverseMapCommand(cmd: string): number {
@@ -352,28 +415,6 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
     return mapping[cmd] ?? 'ALL';
   }
 
-  private mapStatementType(type: string): StatementType {
-    const mapping: Record<string, StatementType> = {
-      'CREATE_POLICY': StatementType.CREATE_POLICY,
-      'ALTER_TABLE': StatementType.ALTER_TABLE,
-      'DROP_POLICY': StatementType.DROP_POLICY,
-      'ENABLE_RLS': StatementType.ENABLE_RLS,
-      'DISABLE_RLS': StatementType.DISABLE_RLS,
-    };
-    return mapping[type] ?? StatementType.UNSPECIFIED;
-  }
-
-  private createGeneratedSQL(stmt: { sql: string; type: string; description?: string }) {
-    const msg: { sql: string; type: StatementType; description?: string } = {
-      sql: stmt.sql,
-      type: this.mapStatementType(stmt.type),
-    };
-    if (stmt.description) {
-      msg.description = stmt.description;
-    }
-    return create(GeneratedSQLSchema, msg);
-  }
-
   private createValidationResult(result: { valid: boolean; errors: Array<{ field: string; message: string; code: string }>; warnings?: Array<{ field: string; message: string; code: string }> }) {
     const errors = result.errors.map((e) =>
       create(ValidationErrorSchema, { field: e.field, message: e.message, code: e.code })
@@ -395,6 +436,74 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
       valid: result.valid,
       errors,
     });
+  }
+
+  /**
+   * Convert proto config to JSON format expected by the stored procedure
+   */
+  private protoConfigToStoredProcJson(config: PreviewPoliciesRequest['config']) {
+    const schema = config?.schema || 'public';
+    const tableName = config?.table || '';
+    const fullTableName = tableName.includes('.') ? tableName : `${schema}.${tableName}`;
+
+    return {
+      table: fullTableName,
+      enableRLS: config?.enableRls ?? true,
+      policies: (config?.policies ?? []).map((p) => ({
+        name: p.name,
+        command: this.mapCommand(p.command),
+        permissive: p.permissive ?? true,
+        roles: [...p.roles],
+        // Use usingExpression if available, otherwise fall back to using
+        ...(p.usingExpression ? { usingExpression: p.usingExpression } : { using: p.using || 'true' }),
+        // Use withCheckExpression if available, otherwise fall back to withCheck
+        ...(p.withCheckExpression ? { withCheckExpression: p.withCheckExpression } :
+           (p.withCheck ? { withCheck: p.withCheck } : {})),
+      })),
+    };
+  }
+
+  /**
+   * Infer statement type from SQL
+   */
+  private inferStatementType(sql: string): StatementType {
+    const upperSql = sql.toUpperCase().trim();
+    if (upperSql.startsWith('CREATE POLICY')) return StatementType.CREATE_POLICY;
+    if (upperSql.startsWith('DROP POLICY')) return StatementType.DROP_POLICY;
+    if (upperSql.includes('ENABLE ROW LEVEL SECURITY')) return StatementType.ENABLE_RLS;
+    if (upperSql.includes('DISABLE ROW LEVEL SECURITY')) return StatementType.DISABLE_RLS;
+    if (upperSql.startsWith('ALTER TABLE')) return StatementType.ALTER_TABLE;
+    return StatementType.UNSPECIFIED;
+  }
+
+  /**
+   * Generate description for a SQL statement
+   */
+  private generateDescription(sql: string, type: StatementType): string {
+    switch (type) {
+      case StatementType.CREATE_POLICY: {
+        const match = sql.match(/CREATE POLICY (\S+) ON (\S+)/i);
+        if (match) return `Create policy '${match[1]}' on ${match[2]}`;
+        return 'Create RLS policy';
+      }
+      case StatementType.DROP_POLICY: {
+        const match = sql.match(/DROP POLICY.*?(\S+) ON (\S+)/i);
+        if (match) return `Drop policy '${match[1]}' on ${match[2]}`;
+        return 'Drop RLS policy';
+      }
+      case StatementType.ENABLE_RLS: {
+        const match = sql.match(/ALTER TABLE (\S+)/i);
+        if (match) return `Enable RLS on ${match[1]}`;
+        return 'Enable RLS';
+      }
+      case StatementType.ALTER_TABLE: {
+        const match = sql.match(/ALTER TABLE (\S+)/i);
+        if (match) return `Alter table ${match[1]}`;
+        return 'Alter table';
+      }
+      default:
+        return sql.substring(0, 50);
+    }
   }
 }
 
