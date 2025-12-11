@@ -4,10 +4,10 @@
 
 ```bash
 # 1. Setup
-cp .env.example .env
+npm run docker:setup
 
 # 2. Start
-docker-compose up -d
+npm run docker:up
 
 # 3. Access
 # UI: http://localhost:5174
@@ -19,29 +19,32 @@ docker-compose up -d
 ### Service Management
 ```bash
 # Start all services
-docker-compose up -d
+npm run docker:up
 
 # Start with pgAdmin
-docker-compose --profile tools up -d
+npm run docker:up:tools
 
 # Stop services
-docker-compose down
+npm run docker:down
 
 # Restart services
-docker-compose restart
+npm run docker:restart
 
 # View logs
-docker-compose logs -f
+npm run docker:logs
 
 # View specific service logs
-docker-compose logs -f postgres
-docker-compose logs -f ui
+npm run docker:postgres:logs
+npm run docker:ui:logs
+
+# Check status
+npm run docker:status
 ```
 
 ### Database Access
 ```bash
 # Open PostgreSQL shell
-docker-compose exec postgres psql -U rlsify -d rlsify
+npm run docker:db:shell
 
 # Run SQL file
 docker-compose exec -T postgres psql -U rlsify -d rlsify < myfile.sql
@@ -56,11 +59,13 @@ docker-compose exec -T postgres psql -U rlsify -d rlsify < backup.sql
 ### Testing
 ```bash
 # Run demo workflow
-./docker/scripts/demo-workflow.sh
+npm run docker:demo
 
 # Run RLS tests
-docker-compose exec postgres psql -U rlsify -d rlsify \
-  -f /docker-entrypoint-initdb.d/test-rls-policies.sql
+npm run docker:db:test
+
+# Validate setup
+npm run docker:validate
 ```
 
 ## 🔧 Useful SQL Commands
@@ -182,13 +187,13 @@ CREATE POLICY project_org_admin_or_team ON projects
 ### Services won't start
 ```bash
 # Check status
-docker-compose ps
+npm run docker:status
 
 # View logs
-docker-compose logs
+npm run docker:logs
 
 # Restart
-docker-compose restart
+npm run docker:restart
 ```
 
 ### Database connection failed
@@ -197,26 +202,25 @@ docker-compose restart
 docker-compose exec postgres pg_isready -U rlsify
 
 # View PostgreSQL logs
-docker-compose logs postgres
+npm run docker:postgres:logs
 ```
 
 ### UI not loading
 ```bash
 # Check UI logs
-docker-compose logs ui
+npm run docker:ui:logs
 
 # Rebuild UI
-docker-compose build ui
-docker-compose up -d ui
+npm run docker:rebuild
 ```
 
 ### Reset everything
 ```bash
 # Stop and remove all data
-docker-compose down -v
+npm run docker:reset
 
 # Start fresh
-docker-compose up -d
+npm run docker:up
 ```
 
 ## 📊 Monitoring

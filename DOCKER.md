@@ -41,7 +41,7 @@ Complete Docker Compose setup for running RLSify with PostgreSQL and the web UI.
 ### 1. Copy Environment Variables
 
 ```bash
-cp .env.example .env
+npm run docker:setup
 ```
 
 Edit `.env` if you want to customize ports or credentials.
@@ -50,10 +50,10 @@ Edit `.env` if you want to customize ports or credentials.
 
 ```bash
 # Start PostgreSQL and UI
-docker-compose up -d
+npm run docker:up
 
 # Or with pgAdmin for database management
-docker-compose --profile tools up -d
+npm run docker:up:tools
 ```
 
 ### 3. Access the Services
@@ -425,6 +425,42 @@ docker-compose build ui
 
 # Restart with new build
 docker-compose up -d ui
+```
+
+## 🔧 NPM Scripts Reference
+
+All Docker commands are available as npm scripts for convenience:
+
+### Setup & Management
+```bash
+npm run docker:setup          # Copy .env.example to .env
+npm run docker:up             # Start all services
+npm run docker:up:tools       # Start with pgAdmin
+npm run docker:down           # Stop all services
+npm run docker:restart        # Restart all services
+npm run docker:status         # Show service status
+npm run docker:clean          # Remove containers (keep data)
+npm run docker:reset          # Remove containers and volumes
+npm run docker:rebuild        # Rebuild UI container
+```
+
+### Database
+```bash
+npm run docker:db:shell       # Open PostgreSQL shell
+npm run docker:db:test        # Run RLS policy tests
+```
+
+### Logs
+```bash
+npm run docker:logs           # View all logs
+npm run docker:ui:logs        # View UI logs only
+npm run docker:postgres:logs  # View PostgreSQL logs only
+```
+
+### Scripts
+```bash
+npm run docker:demo           # Run interactive demo
+npm run docker:validate       # Validate setup
 ```
 
 ## 📝 Environment Variables

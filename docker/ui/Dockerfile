@@ -3,31 +3,23 @@ ARG NODE_VERSION=20
 
 # Base stage with pnpm
 FROM node:${NODE_VERSION}-alpine AS base
-RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /app
 
 # Development stage
 FROM base AS development
 ENV NODE_ENV=development
 
-# Copy package files
+# Copy all files needed for build
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.base.json ./
-COPY packages/types/package.json ./packages/types/
-COPY packages/core/package.json ./packages/core/
-COPY packages/ui/package.json ./packages/ui/
+COPY packages ./packages
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copy source code
-COPY packages/types ./packages/types
-COPY packages/core ./packages/core
-COPY packages/ui ./packages/ui
-
-# Build dependencies
-RUN cd packages/types && pnpm run build
-RUN cd packages/core && pnpm run build
+# Build dependencies (types and core, not UI since it will run in dev mode)
+RUN pnpm --filter @speajus/rlsify-types build && pnpm --filter @speajus/rlsify-core build
 
 # Expose Vite dev server port
 EXPOSE 5174
@@ -37,27 +29,18 @@ CMD ["sh", "-c", "cd packages/ui && pnpm run dev --host 0.0.0.0 --port 5174"]
 
 # Production build stage
 FROM base AS builder
-ENV NODE_ENV=production
 
-# Copy package files
+# Copy all files needed for build
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.base.json ./
-COPY packages/types/package.json ./packages/types/
-COPY packages/core/package.json ./packages/core/
-COPY packages/ui/package.json ./packages/ui/
+COPY packages ./packages
 
-# Install dependencies
+# Install all dependencies (including devDependencies needed for build)
 RUN pnpm install --frozen-lockfile
 
-# Copy source code
-COPY packages/types ./packages/types
-COPY packages/core ./packages/core
-COPY packages/ui ./packages/ui
-
-# Build all packages
-RUN cd packages/types && pnpm run build
-RUN cd packages/core && pnpm run build
-RUN cd packages/ui && pnpm run build
+# Build all packages in dependency order
+ENV NODE_ENV=production
+RUN pnpm -r build
 
 # Production stage
 FROM nginx:alpine AS production

@@ -1,0 +1,15 @@
+# buf.gen.yaml - Code generation configuration for Connect-ES 2.0
+# Note: In Connect-ES 2.0, protoc-gen-es generates both messages AND service definitions
+version: v2
+
+plugins:
+  # Generate ES module protobuf messages AND Connect service definitions
+  - local: protoc-gen-es
+    out: packages/types/src/gen
+    opt:
+      - target=ts
+      - import_extension=.js
+
+inputs:
+  - directory: proto
+

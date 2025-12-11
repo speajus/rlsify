@@ -74,7 +74,7 @@ ui:
 Run an interactive demo showing the complete RLSify workflow:
 
 ```bash
-./docker/scripts/demo-workflow.sh
+npm run docker:demo
 ```
 
 This script:
@@ -89,7 +89,7 @@ This script:
 Run comprehensive RLS policy tests:
 
 ```bash
-docker-compose exec postgres psql -U rlsify -d rlsify -f /docker-entrypoint-initdb.d/test-rls-policies.sql
+npm run docker:db:test
 ```
 
 Or copy to the init directory to run on startup:
@@ -145,7 +145,7 @@ The Docker Compose setup uses named volumes for persistence:
 To reset all data:
 
 ```bash
-docker-compose down -v
+npm run docker:reset
 ```
 
 ## Health Checks
@@ -169,14 +169,14 @@ All services run on the `rlsify-network` bridge network, allowing:
 
 Check logs:
 ```bash
-docker-compose logs -f [service-name]
+npm run docker:logs
 ```
 
 ### Database connection issues
 
 Verify PostgreSQL is healthy:
 ```bash
-docker-compose ps postgres
+npm run docker:status
 docker-compose exec postgres pg_isready -U rlsify
 ```
 
@@ -184,13 +184,12 @@ docker-compose exec postgres pg_isready -U rlsify
 
 Check if Vite dev server is running:
 ```bash
-docker-compose logs -f ui
+npm run docker:ui:logs
 ```
 
 Rebuild the container:
 ```bash
-docker-compose build ui
-docker-compose up -d ui
+npm run docker:rebuild
 ```
 
 ### Port conflicts
@@ -205,9 +204,10 @@ PGADMIN_PORT=5051
 ## Development Tips
 
 1. **Live Reload**: Changes to `packages/ui/src` automatically reload the browser
-2. **Database Shell**: Quick access with `docker-compose exec postgres psql -U rlsify -d rlsify`
-3. **View Logs**: Use `docker-compose logs -f` to monitor all services
-4. **Reset Data**: Use `docker-compose down -v` for a fresh start
+2. **Database Shell**: Quick access with `npm run docker:db:shell`
+3. **View Logs**: Use `npm run docker:logs` to monitor all services
+4. **Reset Data**: Use `npm run docker:reset` for a fresh start
+5. **NPM Scripts**: Run `npm run` to see all available Docker commands
 
 ## Production Deployment
 

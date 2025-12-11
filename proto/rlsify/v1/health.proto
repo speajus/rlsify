@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package rlsify.v1;
+
+// Health check request
+message HealthCheckRequest {}
+
+// Health check response
+message HealthCheckResponse {
+  enum ServingStatus {
+    SERVING_STATUS_UNSPECIFIED = 0;
+    SERVING_STATUS_SERVING = 1;
+    SERVING_STATUS_NOT_SERVING = 2;
+  }
+  
+  ServingStatus status = 1;
+  string version = 2;
+}
+
+// Readiness check request (includes database connectivity)
+message ReadinessCheckRequest {}
+
+// Readiness check response
+message ReadinessCheckResponse {
+  bool ready = 1;
+  optional string database_status = 2;
+  optional string error = 3;
+}
+
+// Health service for liveness and readiness probes
+service HealthService {
+  // Basic health check (liveness)
+  rpc Check(HealthCheckRequest) returns (HealthCheckResponse);
+  
+  // Readiness check (includes database)
+  rpc Ready(ReadinessCheckRequest) returns (ReadinessCheckResponse);
+}
+

@@ -1,0 +1,208 @@
+syntax = "proto3";
+
+package rlsify.v1;
+
+import "google/protobuf/struct.proto";
+
+// SQL command types for RLS policies
+enum PolicyCommand {
+  POLICY_COMMAND_UNSPECIFIED = 0;
+  POLICY_COMMAND_SELECT = 1;
+  POLICY_COMMAND_INSERT = 2;
+  POLICY_COMMAND_UPDATE = 3;
+  POLICY_COMMAND_DELETE = 4;
+  POLICY_COMMAND_ALL = 5;
+}
+
+// Join types
+enum JoinType {
+  JOIN_TYPE_UNSPECIFIED = 0;
+  JOIN_TYPE_INNER = 1;
+  JOIN_TYPE_LEFT = 2;
+  JOIN_TYPE_RIGHT = 3;
+  JOIN_TYPE_FULL = 4;
+}
+
+// Generated SQL statement type
+enum StatementType {
+  STATEMENT_TYPE_UNSPECIFIED = 0;
+  STATEMENT_TYPE_CREATE_POLICY = 1;
+  STATEMENT_TYPE_ALTER_TABLE = 2;
+  STATEMENT_TYPE_DROP_POLICY = 3;
+  STATEMENT_TYPE_ENABLE_RLS = 4;
+  STATEMENT_TYPE_DISABLE_RLS = 5;
+}
+
+// Individual RLS policy definition
+message PolicyDefinition {
+  string name = 1;
+  PolicyCommand command = 2;
+  // Legacy string-based expressions
+  optional string using = 3;
+  optional string with_check = 4;
+  // JSON-based expressions (as Struct for flexibility)
+  optional google.protobuf.Struct using_expression = 5;
+  optional google.protobuf.Struct with_check_expression = 6;
+  repeated string roles = 7;
+  bool permissive = 8;
+}
+
+// Join definition for multi-table policies
+message JoinDefinition {
+  string table = 1;
+  JoinType type = 2;
+  optional string on = 3;
+  optional string alias = 4;
+}
+
+// Complete RLS policy configuration for a table
+message RLSPolicyConfig {
+  string version = 1;
+  string table = 2;
+  optional string schema = 3;
+  repeated PolicyDefinition policies = 4;
+  repeated JoinDefinition joins = 5;
+  bool enable_rls = 6;
+  bool force_rls = 7;
+}
+
+// Validation error
+message ValidationError {
+  string field = 1;
+  string message = 2;
+  string code = 3;
+}
+
+// Validation result
+message ValidationResult {
+  bool valid = 1;
+  repeated ValidationError errors = 2;
+  repeated ValidationError warnings = 3;
+}
+
+// Generated SQL statement
+message GeneratedSQL {
+  string sql = 1;
+  StatementType type = 2;
+  optional string description = 3;
+}
+
+// Policy generation result
+message PolicyGenerationResult {
+  repeated GeneratedSQL statements = 1;
+  ValidationResult validation = 2;
+  RLSPolicyConfig config = 3;
+}
+
+// Request to preview policies (generate SQL without applying)
+message PreviewPoliciesRequest {
+  RLSPolicyConfig config = 1;
+}
+
+// Response with SQL preview
+message PreviewPoliciesResponse {
+  repeated GeneratedSQL statements = 1;
+}
+
+// Request to validate configuration
+message ValidateConfigRequest {
+  RLSPolicyConfig config = 1;
+}
+
+// Response with validation result
+message ValidateConfigResponse {
+  ValidationResult result = 1;
+}
+
+// Request to apply policies to database
+message ApplyPoliciesRequest {
+  RLSPolicyConfig config = 1;
+  // Whether to run as a dry run (validate only)
+  bool dry_run = 2;
+}
+
+// Response from applying policies
+message ApplyPoliciesResponse {
+  PolicyGenerationResult result = 1;
+  bool applied = 2;
+  optional string error = 3;
+}
+
+// Saved policy with metadata
+message SavedPolicy {
+  string id = 1;
+  RLSPolicyConfig config = 2;
+  string created_at = 3;
+  string updated_at = 4;
+  optional string description = 5;
+}
+
+// Request to save a policy configuration
+message SavePolicyRequest {
+  RLSPolicyConfig config = 1;
+  optional string id = 2;  // If provided, updates existing
+  optional string description = 3;
+}
+
+// Response from saving a policy
+message SavePolicyResponse {
+  SavedPolicy policy = 1;
+}
+
+// Request to list saved policies
+message ListPoliciesRequest {
+  optional string table_filter = 1;  // Filter by table name
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+// Response with list of saved policies
+message ListPoliciesResponse {
+  repeated SavedPolicy policies = 1;
+  int32 total = 2;
+}
+
+// Request to get a specific policy
+message GetPolicyRequest {
+  string id = 1;
+}
+
+// Response with a single policy
+message GetPolicyResponse {
+  SavedPolicy policy = 1;
+}
+
+// Request to delete a policy
+message DeletePolicyRequest {
+  string id = 1;
+}
+
+// Response from deleting a policy
+message DeletePolicyResponse {
+  bool deleted = 1;
+}
+
+// Policy management service
+service PolicyService {
+  // Generate SQL preview from configuration
+  rpc PreviewPolicies(PreviewPoliciesRequest) returns (PreviewPoliciesResponse);
+
+  // Validate policy configuration
+  rpc ValidateConfig(ValidateConfigRequest) returns (ValidateConfigResponse);
+
+  // Apply policies to database
+  rpc ApplyPolicies(ApplyPoliciesRequest) returns (ApplyPoliciesResponse);
+
+  // Save a policy configuration
+  rpc SavePolicy(SavePolicyRequest) returns (SavePolicyResponse);
+
+  // List saved policies
+  rpc ListPolicies(ListPoliciesRequest) returns (ListPoliciesResponse);
+
+  // Get a specific policy
+  rpc GetPolicy(GetPolicyRequest) returns (GetPolicyResponse);
+
+  // Delete a policy
+  rpc DeletePolicy(DeletePolicyRequest) returns (DeletePolicyResponse);
+}
+

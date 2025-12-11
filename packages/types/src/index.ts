@@ -485,3 +485,100 @@ export interface PolicyGenerationResult {
   config: RLSPolicyConfig;
 }
 
+// ============================================================================
+// gRPC/Connect Service Definitions (generated from protobuf)
+// ============================================================================
+
+// Re-export generated protobuf types and services with 'Proto' prefix to avoid conflicts
+// Import and re-export with aliases to avoid naming conflicts
+export {
+  // Schema Service
+  SchemaService as SchemaServiceProto,
+  ColumnInfoSchema,
+  ForeignKeyRelationSchema,
+  TableInfoSchema,
+  SchemaInfoSchema,
+  GetSchemaRequestSchema,
+  GetSchemaResponseSchema,
+  GetTableRequestSchema,
+  GetTableResponseSchema,
+  GetForeignKeysRequestSchema,
+  GetForeignKeysResponseSchema,
+  type ColumnInfo as ColumnInfoProto,
+  type ForeignKeyRelation as ForeignKeyRelationProto,
+  type TableInfo as TableInfoProto,
+  type SchemaInfo as SchemaInfoProto,
+  type GetSchemaRequest,
+  type GetSchemaResponse,
+  type GetTableRequest,
+  type GetTableResponse,
+  type GetForeignKeysRequest,
+  type GetForeignKeysResponse,
+} from './gen/rlsify/v1/schema_pb.js';
+
+export {
+  // Policy Service
+  PolicyService as PolicyServiceProto,
+  PolicyCommand as PolicyCommandProto,
+  JoinType,
+  StatementType,
+  PolicyDefinitionSchema,
+  JoinDefinitionSchema,
+  RLSPolicyConfigSchema,
+  ValidationErrorSchema,
+  ValidationResultSchema,
+  GeneratedSQLSchema,
+  PolicyGenerationResultSchema,
+  PreviewPoliciesRequestSchema,
+  PreviewPoliciesResponseSchema,
+  ValidateConfigRequestSchema,
+  ValidateConfigResponseSchema,
+  ApplyPoliciesRequestSchema,
+  ApplyPoliciesResponseSchema,
+  // Policy CRUD schemas
+  SavedPolicySchema,
+  SavePolicyRequestSchema,
+  SavePolicyResponseSchema,
+  ListPoliciesRequestSchema,
+  ListPoliciesResponseSchema,
+  GetPolicyRequestSchema,
+  GetPolicyResponseSchema,
+  DeletePolicyRequestSchema,
+  DeletePolicyResponseSchema,
+  type PolicyDefinition as PolicyDefinitionProto,
+  type JoinDefinition as JoinDefinitionProto,
+  type RLSPolicyConfig as RLSPolicyConfigProto,
+  type ValidationError as ValidationErrorProto,
+  type ValidationResult as ValidationResultProto,
+  type GeneratedSQL as GeneratedSQLProto,
+  type PolicyGenerationResult as PolicyGenerationResultProto,
+  type PreviewPoliciesRequest,
+  type PreviewPoliciesResponse,
+  type ValidateConfigRequest,
+  type ValidateConfigResponse,
+  type ApplyPoliciesRequest,
+  type ApplyPoliciesResponse,
+  // Policy CRUD types
+  type SavedPolicy,
+  type SavePolicyRequest,
+  type SavePolicyResponse,
+  type ListPoliciesRequest,
+  type ListPoliciesResponse,
+  type GetPolicyRequest,
+  type GetPolicyResponse,
+  type DeletePolicyRequest,
+  type DeletePolicyResponse,
+} from './gen/rlsify/v1/policy_pb.js';
+
+export {
+  // Health Service
+  HealthService as HealthServiceProto,
+  HealthCheckResponseSchema,
+  HealthCheckResponse_ServingStatus,
+  ReadinessCheckResponseSchema,
+  type HealthCheckRequest,
+  type HealthCheckResponse,
+  type ReadinessCheckRequest,
+  type ReadinessCheckResponse,
+} from './gen/rlsify/v1/health_pb.js';
+

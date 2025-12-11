@@ -1,16 +1,17 @@
 /**
  * Schema store - manages database schema information
+ * Uses Connect-Web client to communicate with gRPC backend
  */
 
 import { writable, derived } from 'svelte/store';
-import type { SchemaInfo, TableInfo, ForeignKeyRelation } from '@speajus/rlsify-types';
+import type { SchemaInfo } from '@speajus/rlsify-types';
+import { schemaClient } from '../api/client.js';
 import { multiTenantSchema } from '../examples/multi-tenant-schema.js';
 
 interface SchemaState {
   schema: SchemaInfo | null;
   loading: boolean;
   error: string | null;
-  connectionString: string;
 }
 
 // Create a writable store
@@ -18,7 +19,6 @@ const state = writable<SchemaState>({
   schema: null,
   loading: false,
   error: null,
-  connectionString: '',
 });
 
 // Export derived stores for easy access
@@ -29,31 +29,52 @@ export const schemaStore = {
 export const schema = derived(state, $state => $state.schema);
 export const loading = derived(state, $state => $state.loading);
 export const error = derived(state, $state => $state.error);
-export const connectionString = derived(state, $state => $state.connectionString);
 export const tables = derived(state, $state => $state.schema?.tables || []);
 export const foreignKeys = derived(state, $state => $state.schema?.foreignKeys || []);
 
 /**
- * Load schema from database
+ * Load schema from database via the RLSify gRPC service
  */
-export async function loadSchema(connectionString: string): Promise<void> {
-  state.update(s => ({ ...s, loading: true, error: null, connectionString }));
+export async function loadSchema(schemaName: string = 'public'): Promise<void> {
+  state.update(s => ({ ...s, loading: true, error: null }));
 
   try {
-    // In a real implementation, this would call the backend API
-    // For now, we'll simulate with a mock
-    const response = await fetch('/api/schema', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ connectionString }),
-    });
+    // Call the gRPC service via Connect-Web
+    const response = await schemaClient.getSchema({ schema: schemaName });
 
-    if (!response.ok) {
-      throw new Error(`Failed to load schema: ${response.statusText}`);
+    if (response.schema) {
+      // Convert proto types to local types
+      const schemaData: SchemaInfo = {
+        tables: response.schema.tables.map(t => ({
+          schema: t.schema,
+          name: t.name,
+          columns: t.columns.map(c => ({
+            name: c.name,
+            type: c.type,
+            nullable: c.nullable,
+            defaultValue: c.defaultValue,
+            isPrimaryKey: c.isPrimaryKey,
+            isForeignKey: c.isForeignKey,
+          })),
+          foreignKeys: t.foreignKeys.map(fk => ({
+            sourceTable: fk.sourceTable,
+            sourceColumn: fk.sourceColumn,
+            targetTable: fk.targetTable,
+            targetColumn: fk.targetColumn,
+            constraintName: fk.constraintName,
+          })),
+          primaryKeys: [...t.primaryKeys],
+        })),
+        foreignKeys: response.schema.foreignKeys.map(fk => ({
+          sourceTable: fk.sourceTable,
+          sourceColumn: fk.sourceColumn,
+          targetTable: fk.targetTable,
+          targetColumn: fk.targetColumn,
+          constraintName: fk.constraintName,
+        })),
+      };
+      state.update(s => ({ ...s, schema: schemaData, error: null, loading: false }));
     }
-
-    const schemaData: SchemaInfo = await response.json();
-    state.update(s => ({ ...s, schema: schemaData, error: null, loading: false }));
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     state.update(s => ({ ...s, error: errorMessage, schema: null, loading: false }));
@@ -86,7 +107,6 @@ export function clearSchema(): void {
   state.set({
     schema: null,
     error: null,
-    connectionString: '',
     loading: false,
   });
 }

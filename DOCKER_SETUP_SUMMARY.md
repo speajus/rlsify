@@ -18,12 +18,12 @@ A complete Docker Compose environment for RLSify with PostgreSQL and the web UI,
    - Port configurations
    - Service settings
 
-3. **Makefile** - Convenient command shortcuts
-   - `make up` - Start services
-   - `make down` - Stop services
-   - `make db-shell` - Access database
-   - `make logs` - View logs
-   - And more...
+3. **package.json** - NPM scripts for Docker management
+   - `npm run docker:up` - Start services
+   - `npm run docker:down` - Stop services
+   - `npm run docker:db:shell` - Access database
+   - `npm run docker:logs` - View logs
+   - And 12 more commands...
 
 ### Docker Configuration
 
@@ -98,7 +98,18 @@ A complete Docker Compose environment for RLSify with PostgreSQL and the web UI,
    - Sample user IDs
    - Example policies
 
-4. **Updated README.md** - Added Docker quick start section
+4. **docker/NPM_SCRIPTS.md** - NPM scripts documentation
+   - Complete script reference
+   - Usage examples
+   - Common workflows
+   - NPM vs Docker Compose comparison
+
+5. **Updated README.md** - Added Docker quick start section
+
+6. **Updated package.json** - Added Docker npm scripts
+   - All Docker commands available as npm scripts
+   - Consistent interface across platforms
+   - No need for Make
 
 ### CI/CD
 
@@ -110,7 +121,6 @@ A complete Docker Compose environment for RLSify with PostgreSQL and the web UI,
 ### Other Files
 
 - **.dockerignore** - Optimized Docker build context
-- **Makefile** - Command shortcuts for easy management
 
 ## 🎯 Key Features
 
@@ -169,20 +179,19 @@ Demonstrates common patterns:
 
 ```bash
 # 1. Setup environment
-cp .env.example .env
+npm run docker:setup
 
 # 2. Start services
-make up
-# or: docker-compose up -d
+npm run docker:up
 
 # 3. Access the UI
 open http://localhost:5174
 
 # 4. Run demo
-./docker/scripts/demo-workflow.sh
+npm run docker:demo
 
 # 5. Test RLS policies
-make db-test
+npm run docker:db:test
 ```
 
 ## 📊 What Users Can Do
@@ -195,7 +204,7 @@ make db-test
 ### 2. Test Against Real Database
 ```bash
 # Access database
-make db-shell
+npm run docker:db:shell
 
 # Set user context
 SELECT auth.set_user('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
@@ -244,13 +253,15 @@ docker-compose exec postgres psql -U rlsify -d rlsify \
 rlsify/
 ├── docker-compose.yml          # Main orchestration
 ├── .env.example                # Configuration template
-├── Makefile                    # Command shortcuts
+├── package.json                # NPM scripts for Docker
 ├── DOCKER.md                   # Complete guide
 ├── DOCKER_SETUP_SUMMARY.md     # This file
+├── GETTING_STARTED_DOCKER.md   # Quick start guide
 ├── .dockerignore               # Build optimization
 ├── docker/
 │   ├── README.md               # Docker directory docs
 │   ├── QUICK_REFERENCE.md      # Quick reference
+│   ├── NPM_SCRIPTS.md          # NPM scripts guide
 │   ├── postgres/
 │   │   ├── init/               # Database initialization
 │   │   │   ├── 01-schema.sql
@@ -264,7 +275,8 @@ rlsify/
 │   │   └── servers.json        # pgAdmin config
 │   └── scripts/
 │       ├── demo-workflow.sh    # Interactive demo
-│       └── test-rls-policies.sql # Test suite
+│       ├── test-rls-policies.sql # Test suite
+│       └── validate-setup.sh   # Setup validator
 └── .github/workflows/
     └── docker-test.yml         # CI/CD testing
 ```
@@ -281,11 +293,13 @@ rlsify/
 - [x] Health checks
 - [x] Volume persistence
 - [x] Environment configuration
-- [x] Makefile shortcuts
+- [x] NPM scripts (replaces Makefile)
 - [x] Demo workflow script
 - [x] RLS policy test suite
+- [x] Validation script
 - [x] Comprehensive documentation
 - [x] Quick reference guide
+- [x] NPM scripts guide
 - [x] CI/CD workflow
 - [x] Updated main README
 

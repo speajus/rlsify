@@ -29,17 +29,16 @@ The fastest way to try RLSify with a complete working environment including Post
 
 ```bash
 # 1. Copy environment variables
-cp .env.example .env
+npm run docker:setup
 
 # 2. Start PostgreSQL and UI
-make up
-# Or: docker-compose up -d
+npm run docker:up
 
 # 3. Open the UI
 open http://localhost:5174
 
 # 4. Run the interactive demo
-./docker/scripts/demo-workflow.sh
+npm run docker:demo
 ```
 
 **What you get:**
@@ -53,6 +52,7 @@ open http://localhost:5174
 **Documentation:**
 - [Getting Started Guide](./GETTING_STARTED_DOCKER.md) - 5-minute setup
 - [Complete Docker Guide](./DOCKER.md) - Detailed documentation
+- [NPM Scripts Reference](./docker/NPM_SCRIPTS.md) - All Docker commands
 - [Quick Reference](./docker/QUICK_REFERENCE.md) - Common commands
 
 ### Option 2: Local Development

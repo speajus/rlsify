@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { PolicyDefinition, PermissionExpression } from '@speajus/rlsify-types';
-  import { policyConfig } from './stores/policy-store.js';
+  import { updatePolicy as updatePolicyStore } from './stores/policy-store.js';
   import PermissionBuilder from './PermissionBuilder.svelte';
   import VisualQueryBuilder from './VisualQueryBuilder.svelte';
 
@@ -14,36 +14,26 @@
   let { policy, index, onRemove, baseTable }: Props = $props();
 
   // Initialize mode based on the policy content
-  let usingEditorMode = $state<'sql' | 'json' | 'visual'>(
+  let usingEditorMode = $state<'sql' | 'json' | 'visual'>('visual');
+  let checkEditorMode = $state<'sql' | 'json' | 'visual'>('visual');
 
-       'visual'
-  );
-
-  let checkEditorMode = $state<'sql' | 'json' | 'visual'>(
-    'visual'
-  );
-
-  function updatePolicy(field: keyof PolicyDefinition, value: any) {
-    policyConfig.update((config) => {
-      const policies = [...config.policies];
-      policies[index] = { ...policies[index], [field]: value };
-      return { ...config, policies };
-    });
+  function handleUpdatePolicy(field: keyof PolicyDefinition, value: unknown) {
+    updatePolicyStore(index, field, value);
   }
 
   function updateUsingExpression(expr: PermissionExpression | null) {
-    updatePolicy('usingExpression', expr);
+    handleUpdatePolicy('usingExpression', expr);
     if (expr) {
       // Clear the legacy string field when using JSON expression
-      updatePolicy('using', undefined);
+      handleUpdatePolicy('using', undefined);
     }
   }
 
   function updateCheckExpression(expr: PermissionExpression | null) {
-    updatePolicy('withCheckExpression', expr);
+    handleUpdatePolicy('withCheckExpression', expr);
     if (expr) {
       // Clear the legacy string field when using JSON expression
-      updatePolicy('withCheck', undefined);
+      handleUpdatePolicy('withCheck', undefined);
     }
   }
 </script>
@@ -61,7 +51,7 @@
         id="name-{index}"
         type="text"
         value={policy.name}
-        oninput={(e) => updatePolicy('name', e.currentTarget.value)}
+        oninput={(e) => handleUpdatePolicy('name', e.currentTarget.value)}
         placeholder="e.g., posts_select_own"
       />
     </div>
@@ -71,7 +61,7 @@
       <select
         id="command-{index}"
         value={policy.command}
-        onchange={(e) => updatePolicy('command', e.currentTarget.value)}
+        onchange={(e) => handleUpdatePolicy('command', e.currentTarget.value)}
       >
         <option value="SELECT">SELECT</option>
         <option value="INSERT">INSERT</option>
@@ -124,7 +114,7 @@
       <textarea
         id="using-{index}"
         value={policy.using || ''}
-        oninput={(e) => updatePolicy('using', e.currentTarget.value)}
+        oninput={(e) => handleUpdatePolicy('using', e.currentTarget.value)}
         placeholder="e.g., user_id = auth.uid()"
         rows="2"
       ></textarea>
@@ -186,7 +176,7 @@
       <textarea
         id="withCheck-{index}"
         value={policy.withCheck || ''}
-        oninput={(e) => updatePolicy('withCheck', e.currentTarget.value)}
+        oninput={(e) => handleUpdatePolicy('withCheck', e.currentTarget.value)}
         placeholder="e.g., user_id = auth.uid()"
         rows="2"
       ></textarea>

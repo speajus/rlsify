@@ -1,20 +1,20 @@
 <script lang="ts">
   import { schema, loading, error, tables, foreignKeys, loadSchema, loadMockSchema, clearSchema } from './stores/schema-store.js';
 
-  let connectionString = $state('');
-  let useMockData = $state(true);
+  let schemaName = $state('public');
+  let useMockData = $state(false);
 
-  function handleLoadSchema() {
+  async function handleLoadSchema() {
     if (useMockData) {
       loadMockSchema();
     } else {
-      loadSchema(connectionString);
+      await loadSchema(schemaName);
     }
   }
 
   function handleClearSchema() {
     clearSchema();
-    connectionString = '';
+    schemaName = 'public';
   }
 </script>
 
@@ -32,12 +32,12 @@
 
       {#if !useMockData}
         <div class="form-group">
-          <label for="connection">Connection String</label>
+          <label for="schema-name">PostgreSQL Schema Name</label>
           <input
-            id="connection"
+            id="schema-name"
             type="text"
-            bind:value={connectionString}
-            placeholder="postgresql://user:password@host:5432/database"
+            bind:value={schemaName}
+            placeholder="public"
             disabled={$loading}
           />
         </div>
@@ -45,7 +45,7 @@
 
       <button
         onclick={handleLoadSchema}
-        disabled={$loading || (!useMockData && !connectionString)}
+        disabled={$loading || (!useMockData && !schemaName)}
       >
         {$loading ? 'Loading...' : 'Load Schema'}
       </button>
