@@ -4,14 +4,11 @@
   import ExistingPoliciesImporter from './lib/ExistingPoliciesImporter.svelte';
   import {
     policyConfig,
-    savePolicy,
     fetchPolicies,
     fetchPolicy,
     deletePolicy,
     savedPolicies,
-    policySaving,
     policyError,
-    currentPolicyId,
     resetConfig,
   } from './lib/stores/policy-store.js';
   import { loadSchema, schema, loading as schemaLoading, error as schemaError } from './lib/stores/schema-store.js';
@@ -45,12 +42,6 @@
     }
   });
 
-  async function handleSave() {
-    const description = prompt('Enter a description for this policy (optional):');
-    await savePolicy(description ?? undefined);
-    await fetchPolicies();
-  }
-
   async function handleLoadPolicy(id: string) {
     await fetchPolicy(id);
     showSavedPolicies = false;
@@ -81,14 +72,6 @@
       <CardContent class="p-4">
         <div class="flex flex-wrap items-center gap-3">
           <Button onclick={handleNewPolicy}>New Policy</Button>
-          <Button onclick={handleSave} disabled={$policySaving}>
-            {#if $policySaving}
-              <Loader2 class="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            {:else}
-              {$currentPolicyId ? 'Update Policy' : 'Save Policy'}
-            {/if}
-          </Button>
           <Button variant="secondary" onclick={() => showSavedPolicies = !showSavedPolicies}>
             <ChevronDown class="mr-2 h-4 w-4 transition-transform {showSavedPolicies ? 'rotate-180' : ''}" />
             Saved Policies

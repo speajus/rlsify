@@ -164,3 +164,174 @@ describe('tryParseSqlExpression', () => {
   });
 });
 
+describe('buildExistsFromPath', () => {
+  // Import the function from types
+  const { buildExistsFromPath } = require('@speajus/rlsify-types');
+
+  describe('single-level FK navigation', () => {
+    it('generates _exists for orders.user_id → users.email', () => {
+      const result = buildExistsFromPath(
+        {
+          baseTable: 'orders',
+          steps: [
+            { fromTable: 'orders', fromColumn: 'user_id', toTable: 'users', toColumn: 'id' }
+          ],
+          column: 'email'
+        },
+        '_eq',
+        'admin@example.com'
+      );
+
+      expect(result).toEqual({
+        _exists: {
+          _table: 'users',
+          _where: {
+            _and: [
+              { id: { _eq: { column: 'orders.user_id' } } },
+              { email: { _eq: 'admin@example.com' } }
+            ]
+          }
+        }
+      });
+    });
+
+    it('generates _exists with session variable', () => {
+      const result = buildExistsFromPath(
+        {
+          baseTable: 'posts',
+          steps: [
+            { fromTable: 'posts', fromColumn: 'author_id', toTable: 'users', toColumn: 'id' }
+          ],
+          column: 'id'
+        },
+        '_eq',
+        { var: 'auth.uid()', type: 'uuid' }
+      );
+
+      expect(result).toEqual({
+        _exists: {
+          _table: 'users',
+          _where: {
+            _and: [
+              { id: { _eq: { column: 'posts.author_id' } } },
+              { id: { _eq: { var: 'auth.uid()', type: 'uuid' } } }
+            ]
+          }
+        }
+      });
+    });
+  });
+
+  describe('multi-level FK navigation', () => {
+    it('generates nested _exists for orders → users → organizations', () => {
+      const result = buildExistsFromPath(
+        {
+          baseTable: 'orders',
+          steps: [
+            { fromTable: 'orders', fromColumn: 'user_id', toTable: 'users', toColumn: 'id' },
+            { fromTable: 'users', fromColumn: 'org_id', toTable: 'organizations', toColumn: 'id' }
+          ],
+          column: 'name'
+        },
+        '_eq',
+        'Acme Corp'
+      );
+
+      // Should produce nested _exists
+      expect(result).toEqual({
+        _exists: {
+          _table: 'users',
+          _where: {
+            _and: [
+              { id: { _eq: { column: 'orders.user_id' } } },
+              {
+                _exists: {
+                  _table: 'organizations',
+                  _where: {
+                    _and: [
+                      { id: { _eq: { column: 'users.org_id' } } },
+                      { name: { _eq: 'Acme Corp' } }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      });
+    });
+  });
+
+  describe('no FK navigation (direct column)', () => {
+    it('returns simple field expression when no FK steps', () => {
+      const result = buildExistsFromPath(
+        {
+          baseTable: 'users',
+          steps: [],
+          column: 'is_active'
+        },
+        '_eq',
+        true
+      );
+
+      expect(result).toEqual({
+        is_active: { _eq: true }
+      });
+    });
+  });
+
+  describe('edge cases', () => {
+    it('handles self-referential FK (e.g., parent_id → same table)', () => {
+      const result = buildExistsFromPath(
+        {
+          baseTable: 'categories',
+          steps: [
+            { fromTable: 'categories', fromColumn: 'parent_id', toTable: 'categories', toColumn: 'id' }
+          ],
+          column: 'name'
+        },
+        '_eq',
+        'Root Category'
+      );
+
+      expect(result).toEqual({
+        _exists: {
+          _table: 'categories',
+          _where: {
+            _and: [
+              { id: { _eq: { column: 'categories.parent_id' } } },
+              { name: { _eq: 'Root Category' } }
+            ]
+          }
+        }
+      });
+    });
+
+    it('handles different comparison operators', () => {
+      const result = buildExistsFromPath(
+        {
+          baseTable: 'orders',
+          steps: [
+            { fromTable: 'orders', fromColumn: 'user_id', toTable: 'users', toColumn: 'id' }
+          ],
+          column: 'created_at'
+        },
+        '_gte',
+        '2024-01-01'
+      );
+
+      expect(result).toEqual({
+        _exists: {
+          _table: 'users',
+          _where: {
+            _and: [
+              { id: { _eq: { column: 'orders.user_id' } } },
+              { created_at: { _gte: '2024-01-01' } }
+            ]
+          }
+        }
+      });
+    });
+  });
+});
+

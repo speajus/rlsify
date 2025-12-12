@@ -108,6 +108,85 @@ export type PermissionExpression =
   | { _not: PermissionExpression }
   | ExistsExpression;
 
+// ============================================================================
+// Foreign Key Navigation Types (for Visual Query Builder)
+// ============================================================================
+
+/**
+ * A single step in a foreign key relationship path.
+ * Represents navigating from one table to another via a specific FK column.
+ */
+export interface FKNavigationStep {
+  /** The source table name */
+  fromTable: string;
+  /** The FK column in the source table */
+  fromColumn: string;
+  /** The target table name */
+  toTable: string;
+  /** The target column (usually the PK) */
+  toColumn: string;
+}
+
+/**
+ * Complete path through FK relationships from base table to a column.
+ * Used by the Visual Query Builder for cross-table column references.
+ *
+ * Example: For orders → users → organizations.name:
+ * {
+ *   baseTable: 'orders',
+ *   steps: [
+ *     { fromTable: 'orders', fromColumn: 'user_id', toTable: 'users', toColumn: 'id' },
+ *     { fromTable: 'users', fromColumn: 'org_id', toTable: 'organizations', toColumn: 'id' }
+ *   ],
+ *   column: 'name'
+ * }
+ */
+export interface ColumnPath {
+  /** The starting table (policy's base table) */
+  baseTable: string;
+  /** FK navigation steps to reach the target table */
+  steps: FKNavigationStep[];
+  /** The column name in the final table */
+  column: string;
+}
+
+/**
+ * Generates an _exists expression from a column path.
+ * Multi-level paths result in nested _exists expressions.
+ */
+export function buildExistsFromPath(
+  path: ColumnPath,
+  operator: string,
+  value: PermissionValue
+): PermissionExpression {
+  if (path.steps.length === 0) {
+    // No FK navigation - just a direct column reference
+    return { [path.column]: { [operator]: value } } as PermissionExpression;
+  }
+
+  // Build nested _exists from inside out
+  // Start with the innermost condition
+  let innerExpr: PermissionExpression = { [path.column]: { [operator]: value } } as PermissionExpression;
+
+  // Work backwards through the steps
+  for (const step of [...path.steps].reverse()) {
+    // Link condition: join the tables via FK
+    const linkCondition: PermissionExpression = {
+      [step.toColumn]: { _eq: { column: `${step.fromTable}.${step.fromColumn}` } }
+    } as PermissionExpression;
+
+    // Combine link with inner expression
+    innerExpr = {
+      _exists: {
+        _table: step.toTable,
+        _where: { _and: [linkCondition, innerExpr] }
+      }
+    };
+  }
+
+  return innerExpr;
+}
+
 /**
  * Individual RLS policy definition
  */

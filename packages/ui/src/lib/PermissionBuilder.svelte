@@ -10,31 +10,66 @@
 
   let { expression, onUpdate, baseTable }: Props = $props();
 
-  // Available operators
-  const comparisonOps: { value: ComparisonOperator; label: string }[] = [
-    { value: '_eq', label: 'equals (=)' },
-    { value: '_neq', label: 'not equals (≠)' },
-    { value: '_gt', label: 'greater than (>)' },
-    { value: '_gte', label: 'greater than or equal (≥)' },
-    { value: '_lt', label: 'less than (<)' },
-    { value: '_lte', label: 'less than or equal (≤)' },
-    { value: '_in', label: 'in array' },
-    { value: '_nin', label: 'not in array' },
-    { value: '_like', label: 'like (pattern)' },
-    { value: '_ilike', label: 'like (case-insensitive)' },
-    { value: '_is_null', label: 'is null' },
-  ];
+  // Editable JSON state
+  let editableJson = $state('');
+  let jsonError = $state<string | null>(null);
+  let isEditing = $state(false);
 
-  // Common session variables for Supabase/PostgreSQL
-  const sessionVars = [
-    { value: 'auth.uid()', label: 'Current User ID (auth.uid())' },
-    { value: 'current_user', label: 'Current Database User' },
-    { value: 'current_setting(\'request.jwt.claims\')::json->>\'role\'', label: 'JWT Role' },
-    { value: 'current_setting(\'request.jwt.claims\')::json->>\'org_id\'', label: 'JWT Org ID' },
-  ];
+  // Sync editable JSON with expression when not editing
+  $effect(() => {
+    if (!isEditing) {
+      editableJson = expression ? JSON.stringify(expression, null, 2) : '{}';
+    }
+  });
 
-  // Get columns for the base table
-  let baseTableColumns = $derived($schema?.tables.find(t => t.name === baseTable)?.columns || []);
+  function handleJsonInput(e: Event) {
+    const target = e.target as HTMLTextAreaElement;
+    editableJson = target.value;
+    jsonError = null;
+
+    try {
+      const parsed = JSON.parse(editableJson);
+      onUpdate(parsed);
+    } catch (err) {
+      jsonError = err instanceof Error ? err.message : 'Invalid JSON';
+    }
+  }
+
+  function handleFocus() {
+    isEditing = true;
+  }
+
+  function handleBlur() {
+    isEditing = false;
+    // Re-format if valid JSON
+    if (!jsonError && expression) {
+      editableJson = JSON.stringify(expression, null, 2);
+    }
+  }
+
+  // Syntax highlighting for JSON
+  function highlightJson(json: string): string {
+    return json
+      // Escape HTML first
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      // Highlight strings (including keys)
+      .replace(/"([^"\\]|\\.)*"/g, (match) => {
+        // Check if it's a key (followed by :)
+        if (match.startsWith('"_')) {
+          return `<span class="json-operator">${match}</span>`;
+        }
+        return `<span class="json-string">${match}</span>`;
+      })
+      // Highlight numbers
+      .replace(/\b(-?\d+\.?\d*)\b/g, '<span class="json-number">$1</span>')
+      // Highlight booleans and null
+      .replace(/\b(true|false|null)\b/g, '<span class="json-boolean">$1</span>');
+  }
+
+  let highlightedJson = $derived(highlightJson(editableJson));
+
 
   function createSimpleExpression(): PermissionExpression {
     return {
@@ -62,7 +97,7 @@
 
   function useTemplate(template: 'user-owned' | 'role-based' | 'org-tenant') {
     let expr: PermissionExpression;
-    
+
     switch (template) {
       case 'user-owned':
         expr = {
@@ -71,7 +106,7 @@
           }
         };
         break;
-      
+
       case 'role-based':
         expr = {
           _exists: {
@@ -85,7 +120,7 @@
           }
         };
         break;
-      
+
       case 'org-tenant':
         expr = {
           organization_id: {
@@ -94,12 +129,21 @@
         };
         break;
     }
-    
+
     onUpdate(expr);
   }
 
-  // Convert expression to readable JSON
-  let jsonPreview = $derived(expression ? JSON.stringify(expression, null, 2) : '{}');
+  let copySuccess = $state(false);
+
+  async function copyJson() {
+    try {
+      await navigator.clipboard.writeText(editableJson);
+      copySuccess = true;
+      setTimeout(() => {copySuccess = false}, 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }
 </script>
 
 <div class="permission-builder">
@@ -135,12 +179,36 @@
     </div>
   {:else}
     <div class="expression-editor">
-      <div class="json-preview">
+      <div class="json-editor-container">
         <div class="preview-header">
           <strong>JSON Expression:</strong>
-          <button class="secondary" onclick={() => onUpdate()}>Clear</button>
+          <div class="preview-actions">
+            <button class="secondary" onclick={copyJson}>
+              {copySuccess ? '✓ Copied' : 'Copy'}
+            </button>
+            <button class="secondary" onclick={() => onUpdate()}>Clear</button>
+          </div>
         </div>
-        <pre><code>{jsonPreview}</code></pre>
+        <div class="editor-wrapper" class:has-error={jsonError}>
+          <div class="highlight-backdrop" aria-hidden="true">
+            <pre>{@html highlightedJson}</pre>
+          </div>
+          <textarea
+            class="json-textarea"
+            value={editableJson}
+            oninput={handleJsonInput}
+            onfocus={handleFocus}
+            onblur={handleBlur}
+            spellcheck="false"
+            autocomplete="off"
+            autocapitalize="off"
+          ></textarea>
+        </div>
+        {#if jsonError}
+          <div class="json-error">
+            ⚠️ {jsonError}
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
@@ -251,7 +319,7 @@
     gap: 1rem;
   }
 
-  .json-preview {
+  .json-editor-container {
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: 6px;
@@ -269,6 +337,11 @@
     color: var(--text-primary);
   }
 
+  .preview-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
   button.secondary {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -281,30 +354,96 @@
     border-color: var(--border-hover);
   }
 
-  pre {
-    margin: 0;
-    padding: 1rem;
-    background: var(--bg-primary);
+  /* Editor wrapper with overlapping textarea and highlight backdrop */
+  .editor-wrapper {
+    position: relative;
+    min-height: 150px;
+    max-height: 400px;
     border: 1px solid var(--border-color);
     border-radius: 4px;
-    overflow-x: auto;
-    font-family: 'Courier New', monospace;
-    font-size: 0.9rem;
-    line-height: 1.6;
+    background: #1a1a2e;
+    overflow: auto;
   }
 
-  code {
-    color: #58a6ff;
+  .editor-wrapper.has-error {
+    border-color: #f85149;
   }
 
-  .info {
-    background: rgba(88, 166, 255, 0.1);
-    border: 1px solid rgba(88, 166, 255, 0.3);
-    border-radius: 6px;
-    padding: 1rem;
-    color: var(--text-secondary);
+  .highlight-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .highlight-backdrop pre {
     margin: 0;
-    font-size: 0.95rem;
+    padding: 1rem;
+    background: transparent;
+    border: none;
+    font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: #e0e0e0;
+  }
+
+  .json-textarea {
+    position: relative;
+    display: block;
+    width: 100%;
+    min-height: 150px;
+    padding: 1rem;
+    margin: 0;
+    border: none;
+    background: transparent;
+    color: transparent;
+    caret-color: #fff;
+    font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    resize: none;
+    outline: none;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow: hidden;
+    z-index: 1;
+  }
+
+  .json-textarea:focus {
+    outline: none;
+  }
+
+  .json-error {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(248, 81, 73, 0.15);
+    border: 1px solid rgba(248, 81, 73, 0.4);
+    border-radius: 4px;
+    color: #f85149;
+    font-size: 0.8rem;
+    font-family: monospace;
+  }
+
+  /* Syntax highlighting colors */
+  :global(.json-operator) {
+    color: #ff79c6;
+    font-weight: 500;
+  }
+
+  :global(.json-string) {
+    color: #a5d6ff;
+  }
+
+  :global(.json-number) {
+    color: #79c0ff;
+  }
+
+  :global(.json-boolean) {
+    color: #ffa657;
   }
 </style>
 

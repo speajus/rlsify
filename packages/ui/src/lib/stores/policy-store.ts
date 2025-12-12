@@ -17,6 +17,7 @@ const initialConfig: RLSPolicyConfig = {
 
 interface PolicyState {
   config: RLSPolicyConfig;
+  lastSavedConfig: RLSPolicyConfig | null;
   savedPolicyId: string | null;
   savedPolicies: SavedPolicy[];
   existingPolicies: ExistingRLSPolicy[];
@@ -27,6 +28,7 @@ interface PolicyState {
 
 const state = writable<PolicyState>({
   config: initialConfig,
+  lastSavedConfig: null,
   savedPolicyId: null,
   savedPolicies: [],
   existingPolicies: [],
@@ -43,6 +45,20 @@ export const policyLoading = derived(state, ($state) => $state.loading);
 export const policySaving = derived(state, ($state) => $state.saving);
 export const policyError = derived(state, ($state) => $state.error);
 export const currentPolicyId = derived(state, ($state) => $state.savedPolicyId);
+
+// Check if there are unsaved changes
+export const hasUnsavedChanges = derived(state, ($state) => {
+  // If there's no table selected and no policies, no changes
+  if (!$state.config.table && $state.config.policies.length === 0) {
+    return false;
+  }
+  // If never saved (new policy with content), has changes
+  if ($state.lastSavedConfig === null) {
+    return $state.config.table !== '' || $state.config.policies.length > 0;
+  }
+  // Compare current config with last saved config
+  return JSON.stringify($state.config) !== JSON.stringify($state.lastSavedConfig);
+});
 
 export function addPolicy() {
   state.update((s) => ({
@@ -99,6 +115,7 @@ export function resetConfig() {
   state.update((s) => ({
     ...s,
     config: initialConfig,
+    lastSavedConfig: null,
     savedPolicyId: null,
   }));
 }
@@ -169,6 +186,7 @@ export async function savePolicy(description?: string): Promise<void> {
       state.update((s) => ({
         ...s,
         savedPolicyId: response.policy?.id ?? null,
+        lastSavedConfig: JSON.parse(JSON.stringify(s.config)), // Deep copy
         saving: false,
       }));
     }
@@ -216,6 +234,7 @@ export async function fetchPolicy(id: string): Promise<void> {
       state.update((s) => ({
         ...s,
         config,
+        lastSavedConfig: JSON.parse(JSON.stringify(config)), // Deep copy
         savedPolicyId: response.policy?.id ?? null,
         loading: false,
       }));

@@ -1,26 +1,28 @@
 <script lang="ts">
-  import type { TableInfo } from '@speajus/rlsify-types';
+  import type { TableInfo, FKNavigationStep } from '@speajus/rlsify-types';
   import FieldSelector from './FieldSelector.svelte';
   import ValueInput from './ValueInput.svelte';
-  
+
   interface Condition {
     id: string;
     field: string;
     tablePath: string[];
+    /** FK navigation steps for cross-table references */
+    fkPath?: FKNavigationStep[];
     operator: string;
-    value: any;
+    value: unknown;
     valueType: 'literal' | 'session' | 'column';
   }
-  
+
   interface Props {
     condition: Condition;
     availableTables: Array<{ table: TableInfo; path: string[]; relationship: string }>;
     onUpdate: (updates: Partial<Condition>) => void;
     onRemove: () => void;
   }
-  
+
   let { condition, availableTables, onUpdate, onRemove }: Props = $props();
-  
+
   const operators = [
     { value: '_eq', label: 'equals', symbol: '=' },
     { value: '_neq', label: 'not equals', symbol: '≠' },
@@ -34,7 +36,7 @@
     { value: '_ilike', label: 'like (case-insensitive)', symbol: '~*' },
     { value: '_is_null', label: 'is null', symbol: '∅' },
   ];
-  
+
   // Initialize with the last table in the path, or empty string
   let selectedTableName = $state(condition.tablePath[condition.tablePath.length - 1] || '');
 
@@ -42,13 +44,15 @@
   $effect(() => {
     if (!selectedTableName && availableTables.length > 0) {
       const baseTable = availableTables[0];
-      selectedTableName = baseTable.table.name;
-      // Only reset the field if the condition doesn't already have one
-      if (!condition.field) {
-        onUpdate({
-          tablePath: baseTable.path,
-          field: ''
-        });
+      if (baseTable) {
+        selectedTableName = baseTable.table.name;
+        // Only reset the field if the condition doesn't already have one
+        if (!condition.field) {
+          onUpdate({
+            tablePath: baseTable.path,
+            field: ''
+          });
+        }
       }
     }
   });
@@ -59,20 +63,25 @@
     if (selectedTableInfo) {
       onUpdate({
         tablePath: selectedTableInfo.path,
+        fkPath: [], // Reset FK path when base table changes
         field: '' // Reset field when table changes
       });
     }
   }
-  
+
   function handleFieldChange(fieldName: string) {
     onUpdate({ field: fieldName });
   }
-  
+
+  function handleNavigationChange(fkPath: FKNavigationStep[]) {
+    onUpdate({ fkPath });
+  }
+
   function handleOperatorChange(operator: string) {
     onUpdate({ operator });
   }
-  
-  function handleValueChange(value: any, valueType: 'literal' | 'session' | 'column') {
+
+  function handleValueChange(value: unknown, valueType: 'literal' | 'session' | 'column') {
     onUpdate({ value, valueType });
   }
 </script>
@@ -84,8 +93,10 @@
         {availableTables}
         selectedTable={selectedTableName}
         selectedField={condition.field}
+        navigationPath={condition.fkPath || []}
         onTableChange={handleTableChange}
         onFieldChange={handleFieldChange}
+        onNavigationChange={handleNavigationChange}
       />
     </div>
     
