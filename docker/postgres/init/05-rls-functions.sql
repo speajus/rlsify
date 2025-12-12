@@ -196,43 +196,49 @@ DECLARE
   op_key TEXT;
   op_value JSONB;
   compiled TEXT;
+  key_count INT;
 BEGIN
   -- Handle null/empty
   IF expr IS NULL OR expr = '{}'::jsonb THEN
     RETURN 'true';
   END IF;
 
-  -- Handle _and
-  IF expr ? '_and' THEN
+  -- Count keys to check for exclusive operators
+  SELECT COUNT(*) INTO key_count FROM jsonb_object_keys(expr);
+
+  -- Handle _and (exclusive - only _and in the object)
+  IF expr ? '_and' AND key_count = 1 THEN
     conditions := ARRAY[]::TEXT[];
     FOR child_expr IN SELECT jsonb_array_elements(expr->'_and') LOOP
       conditions := conditions || rls.compile_expression(child_expr);
     END LOOP;
-    IF array_length(conditions, 1) = 0 THEN
+    -- array_length returns NULL for empty arrays, so use COALESCE
+    IF COALESCE(array_length(conditions, 1), 0) = 0 THEN
       RETURN 'true';
     END IF;
     RETURN '(' || array_to_string(conditions, ' AND ') || ')';
   END IF;
 
-  -- Handle _or
-  IF expr ? '_or' THEN
+  -- Handle _or (exclusive - only _or in the object)
+  IF expr ? '_or' AND key_count = 1 THEN
     conditions := ARRAY[]::TEXT[];
     FOR child_expr IN SELECT jsonb_array_elements(expr->'_or') LOOP
       conditions := conditions || rls.compile_expression(child_expr);
     END LOOP;
-    IF array_length(conditions, 1) = 0 THEN
+    -- array_length returns NULL for empty arrays, so use COALESCE
+    IF COALESCE(array_length(conditions, 1), 0) = 0 THEN
       RETURN 'false';
     END IF;
     RETURN '(' || array_to_string(conditions, ' OR ') || ')';
   END IF;
 
-  -- Handle _not
-  IF expr ? '_not' THEN
+  -- Handle _not (exclusive - only _not in the object)
+  IF expr ? '_not' AND key_count = 1 THEN
     RETURN 'NOT (' || rls.compile_expression(expr->'_not') || ')';
   END IF;
 
-  -- Handle _exists
-  IF expr ? '_exists' THEN
+  -- Handle _exists (exclusive - only _exists in the object)
+  IF expr ? '_exists' AND key_count = 1 THEN
     -- Get table name
     IF jsonb_typeof(expr->'_exists'->'_table') = 'string' THEN
       exists_table := expr->'_exists'->>'_table';
@@ -246,30 +252,50 @@ BEGIN
     RETURN format('EXISTS (SELECT 1 FROM %s WHERE %s)', exists_table, exists_where);
   END IF;
 
-  -- Handle field expressions (column comparisons)
+  -- Handle mixed expressions (field comparisons + special operators)
+  -- Process all keys and combine with AND
   conditions := ARRAY[]::TEXT[];
 
   FOR field_key, field_value IN SELECT * FROM jsonb_each(expr) LOOP
-    -- Skip special operators (shouldn't reach here, but safety check)
-    IF field_key IN ('_and', '_or', '_not', '_exists') THEN
-      CONTINUE;
-    END IF;
-
-    -- field_value should be an object with comparison operators
-    IF jsonb_typeof(field_value) = 'object' THEN
-      FOR op_key, op_value IN SELECT * FROM jsonb_each(field_value) LOOP
-        IF rls.is_comparison_operator(op_key) THEN
-          conditions := conditions || rls.compile_comparison(field_key, op_key, op_value);
-        ELSE
-          -- Nested expression (relationship traversal) - treat as nested permission
-          compiled := rls.compile_expression(field_value);
-          conditions := conditions || compiled;
-        END IF;
+    -- Handle special operators
+    IF field_key = '_and' THEN
+      FOR child_expr IN SELECT jsonb_array_elements(field_value) LOOP
+        conditions := conditions || rls.compile_expression(child_expr);
       END LOOP;
+    ELSIF field_key = '_or' THEN
+      -- Compile _or as a sub-expression
+      compiled := rls.compile_expression(jsonb_build_object('_or', field_value));
+      conditions := conditions || compiled;
+    ELSIF field_key = '_not' THEN
+      conditions := conditions || ('NOT (' || rls.compile_expression(field_value) || ')');
+    ELSIF field_key = '_exists' THEN
+      -- Compile _exists
+      IF jsonb_typeof(field_value->'_table') = 'string' THEN
+        exists_table := field_value->>'_table';
+      ELSE
+        exists_table := (field_value->'_table'->>'schema') || '.' ||
+                        (field_value->'_table'->>'name');
+      END IF;
+      exists_where := rls.compile_expression(field_value->'_where');
+      conditions := conditions || format('EXISTS (SELECT 1 FROM %s WHERE %s)', exists_table, exists_where);
+    ELSE
+      -- field_value should be an object with comparison operators
+      IF jsonb_typeof(field_value) = 'object' THEN
+        FOR op_key, op_value IN SELECT * FROM jsonb_each(field_value) LOOP
+          IF rls.is_comparison_operator(op_key) THEN
+            conditions := conditions || rls.compile_comparison(field_key, op_key, op_value);
+          ELSE
+            -- Nested expression (relationship traversal) - treat as nested permission
+            compiled := rls.compile_expression(field_value);
+            conditions := conditions || compiled;
+          END IF;
+        END LOOP;
+      END IF;
     END IF;
   END LOOP;
 
-  IF array_length(conditions, 1) = 0 THEN
+  -- array_length returns NULL for empty arrays, so use COALESCE
+  IF COALESCE(array_length(conditions, 1), 0) = 0 THEN
     RETURN 'true';
   ELSIF array_length(conditions, 1) = 1 THEN
     RETURN conditions[1];
@@ -362,19 +388,37 @@ BEGIN
     );
 
     -- Build CREATE POLICY statement
-    policy_sql := format(
-      'CREATE POLICY %I ON %s AS %s FOR %s TO %s USING (%s)',
-      policy_name,
-      table_name,
-      CASE WHEN permissive THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END,
-      policy_command,
-      role_list,
-      using_expr
-    );
+    -- INSERT policies can only have WITH CHECK, not USING
+    IF policy_command = 'INSERT' THEN
+      -- For INSERT, use WITH CHECK only
+      IF check_expr IS NULL THEN
+        check_expr := using_expr;  -- Fall back to using_expr if no check_expr
+      END IF;
+      policy_sql := format(
+        'CREATE POLICY %I ON %s AS %s FOR %s TO %s WITH CHECK (%s)',
+        policy_name,
+        table_name,
+        CASE WHEN permissive THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END,
+        policy_command,
+        role_list,
+        check_expr
+      );
+    ELSE
+      -- For SELECT, UPDATE, DELETE, ALL - use USING clause
+      policy_sql := format(
+        'CREATE POLICY %I ON %s AS %s FOR %s TO %s USING (%s)',
+        policy_name,
+        table_name,
+        CASE WHEN permissive THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END,
+        policy_command,
+        role_list,
+        using_expr
+      );
 
-    -- Add WITH CHECK if specified and command supports it
-    IF check_expr IS NOT NULL AND policy_command IN ('INSERT', 'UPDATE', 'ALL') THEN
-      policy_sql := policy_sql || format(' WITH CHECK (%s)', check_expr);
+      -- Add WITH CHECK if specified and command supports it (UPDATE, ALL)
+      IF check_expr IS NOT NULL AND policy_command IN ('UPDATE', 'ALL') THEN
+        policy_sql := policy_sql || format(' WITH CHECK (%s)', check_expr);
+      END IF;
     END IF;
 
     policy_sql := policy_sql || ';';
@@ -462,19 +506,37 @@ BEGIN
     EXECUTE format('DROP POLICY IF EXISTS %I ON %s', policy_name, table_name);
 
     -- Build and execute CREATE POLICY statement
-    policy_sql := format(
-      'CREATE POLICY %I ON %s AS %s FOR %s TO %s USING (%s)',
-      policy_name,
-      table_name,
-      CASE WHEN permissive THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END,
-      policy_command,
-      role_list,
-      using_expr
-    );
+    -- INSERT policies can only have WITH CHECK, not USING
+    IF policy_command = 'INSERT' THEN
+      -- For INSERT, use WITH CHECK only
+      IF check_expr IS NULL THEN
+        check_expr := using_expr;  -- Fall back to using_expr if no check_expr
+      END IF;
+      policy_sql := format(
+        'CREATE POLICY %I ON %s AS %s FOR %s TO %s WITH CHECK (%s)',
+        policy_name,
+        table_name,
+        CASE WHEN permissive THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END,
+        policy_command,
+        role_list,
+        check_expr
+      );
+    ELSE
+      -- For SELECT, UPDATE, DELETE, ALL - use USING clause
+      policy_sql := format(
+        'CREATE POLICY %I ON %s AS %s FOR %s TO %s USING (%s)',
+        policy_name,
+        table_name,
+        CASE WHEN permissive THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END,
+        policy_command,
+        role_list,
+        using_expr
+      );
 
-    -- Add WITH CHECK if specified and command supports it
-    IF check_expr IS NOT NULL AND policy_command IN ('INSERT', 'UPDATE', 'ALL') THEN
-      policy_sql := policy_sql || format(' WITH CHECK (%s)', check_expr);
+      -- Add WITH CHECK if specified and command supports it (UPDATE, ALL)
+      IF check_expr IS NOT NULL AND policy_command IN ('UPDATE', 'ALL') THEN
+        policy_sql := policy_sql || format(' WITH CHECK (%s)', check_expr);
+      END IF;
     END IF;
 
     EXECUTE policy_sql;
