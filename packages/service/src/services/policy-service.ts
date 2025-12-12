@@ -3,7 +3,7 @@
  */
 
 import type { Pool } from 'pg';
-import { create } from '@bufbuild/protobuf';
+import { create, type JsonObject } from '@bufbuild/protobuf';
 import type { ServiceImpl } from '@connectrpc/connect';
 import {
   createContainer,
@@ -27,6 +27,8 @@ import {
   DeletePolicyResponseSchema,
   RLSPolicyConfigSchema,
   PolicyDefinitionSchema,
+  ListExistingPoliciesResponseSchema,
+  ExistingRLSPolicySchema,
   type PreviewPoliciesRequest,
   type ValidateConfigRequest,
   type ApplyPoliciesRequest,
@@ -34,8 +36,10 @@ import {
   type ListPoliciesRequest,
   type GetPolicyRequest,
   type DeletePolicyRequest,
+  type ListExistingPoliciesRequest,
   type RLSPolicyConfig,
 } from '@speajus/rlsify-types';
+import { tryParseSqlExpression } from '@speajus/rlsify-core';
 
 export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto> {
   private coreContainer = createContainer();
@@ -285,6 +289,108 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
     return create(DeletePolicyResponseSchema, {
       deleted: (result.rowCount ?? 0) > 0,
     });
+  }
+
+  async listExistingPolicies(request: ListExistingPoliciesRequest) {
+    const schemaName = request.schema ?? 'public';
+
+    // Query pg_policies view to get existing RLS policies
+    // Note: roles is a name[] array, we convert it to text[] for proper JSON serialization
+    let query = `
+      SELECT
+        schemaname as schema_name,
+        tablename as table_name,
+        policyname as policy_name,
+        cmd as command,
+        permissive,
+        roles::text[] as roles,
+        qual as using_expression,
+        with_check as with_check_expression
+      FROM pg_policies
+      WHERE schemaname = $1
+    `;
+    const params: string[] = [schemaName];
+
+    if (request.table) {
+      query += ' AND tablename = $2';
+      params.push(request.table);
+    }
+
+    query += ' ORDER BY tablename, policyname';
+
+    const result = await this.pool.query(query, params);
+
+    const policies = result.rows.map((row) => {
+      // Try to parse the SQL expressions to JSON format
+      let parsedUsing = null;
+      let parsedWithCheck = null;
+      let parseError: string | undefined;
+
+      if (row.using_expression) {
+        try {
+          const parsed = tryParseSqlExpression(row.using_expression);
+          if (parsed) {
+            parsedUsing = parsed;
+          }
+        } catch (e) {
+          parseError = e instanceof Error ? e.message : 'Failed to parse USING expression';
+        }
+      }
+
+      if (row.with_check_expression) {
+        try {
+          const parsed = tryParseSqlExpression(row.with_check_expression);
+          if (parsed) {
+            parsedWithCheck = parsed;
+          }
+        } catch (e) {
+          parseError = parseError
+            ? `${parseError}; ${e instanceof Error ? e.message : 'Failed to parse WITH CHECK expression'}`
+            : (e instanceof Error ? e.message : 'Failed to parse WITH CHECK expression');
+        }
+      }
+
+      const policyData: {
+        schemaName: string;
+        tableName: string;
+        policyName: string;
+        command: string;
+        permissive: boolean;
+        roles: string[];
+        usingExpression?: string;
+        withCheckExpression?: string;
+        parsedUsing?: JsonObject;
+        parsedWithCheck?: JsonObject;
+        parseError?: string;
+      } = {
+        schemaName: row.schema_name,
+        tableName: row.table_name,
+        policyName: row.policy_name,
+        command: row.command || 'ALL',
+        permissive: row.permissive === 'PERMISSIVE',
+        roles: row.roles || [],
+      };
+
+      if (row.using_expression) {
+        policyData.usingExpression = row.using_expression;
+      }
+      if (row.with_check_expression) {
+        policyData.withCheckExpression = row.with_check_expression;
+      }
+      if (parsedUsing) {
+        policyData.parsedUsing = parsedUsing as JsonObject;
+      }
+      if (parsedWithCheck) {
+        policyData.parsedWithCheck = parsedWithCheck as JsonObject;
+      }
+      if (parseError) {
+        policyData.parseError = parseError;
+      }
+
+      return create(ExistingRLSPolicySchema, policyData);
+    });
+
+    return create(ListExistingPoliciesResponseSchema, { policies });
   }
 
   private rowToSavedPolicy(row: { id: string; config: unknown; description?: string; created_at: Date; updated_at: Date }) {

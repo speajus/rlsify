@@ -1,10 +1,10 @@
 <script lang="ts">
   import type { PermissionExpression, ComparisonOperator } from '@speajus/rlsify-types';
-  import { schema, tables } from './stores/schema-store.js';
+  import { schema } from './stores/schema-store.js';
 
   interface Props {
     expression?: PermissionExpression;
-    onUpdate: (expr: PermissionExpression) => void;
+    onUpdate: (expr?: PermissionExpression) => void;
     baseTable: string;
   }
 
@@ -138,14 +138,10 @@
       <div class="json-preview">
         <div class="preview-header">
           <strong>JSON Expression:</strong>
-          <button class="secondary" onclick={() => onUpdate(null)}>Clear</button>
+          <button class="secondary" onclick={() => onUpdate()}>Clear</button>
         </div>
         <pre><code>{jsonPreview}</code></pre>
       </div>
-      
-      <p class="info">
-        💡 This JSON expression will be converted to a PostgreSQL WHERE clause for your RLS policy.
-      </p>
     </div>
   {/if}
 </div>

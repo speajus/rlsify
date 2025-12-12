@@ -4,7 +4,7 @@
  */
 
 import { writable, derived } from 'svelte/store';
-import type { RLSPolicyConfig, JoinDefinition, PolicyDefinition, SavedPolicy } from '@speajus/rlsify-types';
+import type { RLSPolicyConfig, JoinDefinition, PolicyDefinition, SavedPolicy, ExistingRLSPolicy } from '@speajus/rlsify-types';
 import { policyClient } from '../api/client.js';
 
 const initialConfig: RLSPolicyConfig = {
@@ -19,6 +19,7 @@ interface PolicyState {
   config: RLSPolicyConfig;
   savedPolicyId: string | null;
   savedPolicies: SavedPolicy[];
+  existingPolicies: ExistingRLSPolicy[];
   loading: boolean;
   saving: boolean;
   error: string | null;
@@ -28,6 +29,7 @@ const state = writable<PolicyState>({
   config: initialConfig,
   savedPolicyId: null,
   savedPolicies: [],
+  existingPolicies: [],
   loading: false,
   saving: false,
   error: null,
@@ -36,6 +38,7 @@ const state = writable<PolicyState>({
 // Derived stores for easy access
 export const policyConfig = derived(state, ($state) => $state.config);
 export const savedPolicies = derived(state, ($state) => $state.savedPolicies);
+export const existingPolicies = derived(state, ($state) => $state.existingPolicies);
 export const policyLoading = derived(state, ($state) => $state.loading);
 export const policySaving = derived(state, ($state) => $state.saving);
 export const policyError = derived(state, ($state) => $state.error);
@@ -242,6 +245,53 @@ export async function deletePolicy(id: string): Promise<void> {
     const errorMessage = err instanceof Error ? err.message : 'Failed to delete policy';
     state.update((s) => ({ ...s, error: errorMessage, loading: false }));
   }
+}
+
+/**
+ * Fetch existing RLS policies from the database (pg_policies view)
+ */
+export async function fetchExistingPolicies(schema?: string, table?: string): Promise<void> {
+  state.update((s) => ({ ...s, loading: true, error: null }));
+
+  try {
+    const response = await policyClient.listExistingPolicies({
+      schema: schema ?? 'public',
+      table,
+    });
+
+    state.update((s) => ({
+      ...s,
+      existingPolicies: response.policies as ExistingRLSPolicy[],
+      loading: false,
+    }));
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Failed to load existing policies';
+    state.update((s) => ({ ...s, error: errorMessage, loading: false }));
+  }
+}
+
+/**
+ * Import an existing RLS policy into the current config
+ */
+export function importExistingPolicy(policy: ExistingRLSPolicy): void {
+  const newPolicy: PolicyDefinition = {
+    name: policy.policyName,
+    command: policy.command as 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'ALL',
+    using: policy.usingExpression ?? '',
+    withCheck: policy.withCheckExpression,
+    roles: [...policy.roles],
+    permissive: policy.permissive,
+  };
+
+  state.update((s) => ({
+    ...s,
+    config: {
+      ...s.config,
+      table: s.config.table || policy.tableName,
+      schema: s.config.schema || policy.schemaName,
+      policies: [...s.config.policies, newPolicy],
+    },
+  }));
 }
 
 // Helper functions to convert between local and proto formats

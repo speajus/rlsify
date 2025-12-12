@@ -182,6 +182,33 @@ message DeletePolicyResponse {
   bool deleted = 1;
 }
 
+// Existing RLS policy from the database (from pg_policies view)
+message ExistingRLSPolicy {
+  string schema_name = 1;
+  string table_name = 2;
+  string policy_name = 3;
+  string command = 4;  // SELECT, INSERT, UPDATE, DELETE, ALL
+  bool permissive = 5;
+  repeated string roles = 6;
+  optional string using_expression = 7;      // Raw SQL USING clause
+  optional string with_check_expression = 8; // Raw SQL WITH CHECK clause
+  // Parsed JSON expressions (if parsing succeeded)
+  optional google.protobuf.Struct parsed_using = 9;
+  optional google.protobuf.Struct parsed_with_check = 10;
+  optional string parse_error = 11;  // Error message if parsing failed
+}
+
+// Request to list existing RLS policies from the database
+message ListExistingPoliciesRequest {
+  optional string schema = 1;  // Filter by schema (defaults to 'public')
+  optional string table = 2;   // Filter by table name
+}
+
+// Response with existing RLS policies
+message ListExistingPoliciesResponse {
+  repeated ExistingRLSPolicy policies = 1;
+}
+
 // Policy management service
 service PolicyService {
   // Generate SQL preview from configuration
@@ -204,5 +231,8 @@ service PolicyService {
 
   // Delete a policy
   rpc DeletePolicy(DeletePolicyRequest) returns (DeletePolicyResponse);
+
+  // List existing RLS policies from the database
+  rpc ListExistingPolicies(ListExistingPoliciesRequest) returns (ListExistingPoliciesResponse);
 }
 

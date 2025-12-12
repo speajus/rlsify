@@ -2,12 +2,25 @@
   import { policyConfig, addPolicy, removePolicy, updateTable } from './stores/policy-store.js';
   import { schema } from './stores/schema-store.js';
   import PolicyItem from './PolicyItem.svelte';
-  import ExamplePolicies from './ExamplePolicies.svelte';
+  import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
+  import { Button } from '$lib/components/ui/button/index.js';
+  import { Label } from '$lib/components/ui/label/index.js';
+  import { Input } from '$lib/components/ui/input/index.js';
+  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '$lib/components/ui/select/index.js';
+  import Plus from 'lucide-svelte/icons/plus';
 
   let tableName = $state('');
 
   // Get available tables from schema
   let availableTables = $derived($schema?.tables || []);
+
+  // Create items array for bits-ui Select (enables typeahead and label display)
+  let tableItems = $derived(
+    availableTables.map((table) => ({
+      value: `${table.schema}.${table.name}`,
+      label: `${table.schema}.${table.name}`,
+    }))
+  );
 
   // Sync tableName with policy config when it changes externally (e.g., from loading an example)
   $effect(() => {
@@ -22,141 +35,76 @@
       updateTable(tableName);
     }
   });
+
+  function handleTableSelect(value: string | undefined) {
+    if (value) {
+      tableName = value;
+    }
+  }
 </script>
 
-<div class="editor">
-  <h2>Policy Configuration</h2>
-
-  <div class="form-group">
-    <label for="table">Table Name</label>
-    {#if availableTables.length > 0}
-      <select
-        id="table"
-        bind:value={tableName}
-      >
-        <option value="">Select a table...</option>
-        {#each availableTables as table}
-          <option value="{table.schema}.{table.name}">
-            {table.schema}.{table.name}
-          </option>
-        {/each}
-      </select>
-    {:else}
-      <input
-        id="table"
-        type="text"
-        bind:value={tableName}
-        placeholder="e.g., public.posts, public.users"
-      />
-      <p class="hint">Load schema to see available tables</p>
-    {/if}
-  </div>
-
-  <ExamplePolicies />
-
-  <div class="policies-section">
-    <div class="section-header">
-      <h3>Policies</h3>
-      <button onclick={addPolicy}>+ Add Policy</button>
+<Card class="border-border">
+  <CardHeader>
+    <CardTitle class="text-xl">Policy Configuration</CardTitle>
+  </CardHeader>
+  <CardContent class="flex flex-col gap-6">
+    <!-- Table Selection -->
+    <div class="flex flex-col gap-2">
+      <Label for="table">Table Name</Label>
+      {#if availableTables.length > 0}
+        <Select type="single" value={tableName} onValueChange={handleTableSelect} items={tableItems}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select a table...">
+              {tableName || 'Select a table...'}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {#each availableTables as table}
+              <SelectItem value="{table.schema}.{table.name}" label="{table.schema}.{table.name}" />
+            {/each}
+          </SelectContent>
+        </Select>
+      {:else}
+        <Input
+          id="table"
+          type="text"
+          bind:value={tableName}
+          placeholder="e.g., public.posts, public.users"
+        />
+        <p class="text-sm text-muted-foreground">Load schema to see available tables</p>
+      {/if}
     </div>
 
-    {#if $policyConfig.policies.length === 0}
-      <p class="empty-state">No policies defined. Click "Add Policy" to get started.</p>
-    {:else}
-      <div class="policies-list">
-        {#each $policyConfig.policies as policy, index (index)}
-          <PolicyItem
-            {policy}
-            {index}
-            onRemove={() => removePolicy(index)}
-            baseTable={tableName}
-          />
-        {/each}
+    <!-- Policies Section -->
+    <div class="flex flex-col gap-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-lg font-semibold">Policies</h3>
+        <Button onclick={addPolicy} size="sm">
+          <Plus class="mr-1 h-4 w-4" />
+          Add Policy
+        </Button>
       </div>
-    {/if}
-  </div>
-</div>
+
+      {#if $policyConfig.policies.length === 0}
+        <div class="text-center text-muted-foreground py-8 border-2 border-dashed border-border rounded-lg bg-muted/30">
+          No policies defined. Click "Add Policy" to get started.
+        </div>
+      {:else}
+        <div class="flex flex-col gap-4">
+          {#each $policyConfig.policies as policy, index (index)}
+            <PolicyItem
+              {policy}
+              {index}
+              onRemove={() => removePolicy(index)}
+              baseTable={tableName}
+            />
+          {/each}
+        </div>
+      {/if}
+    </div>
+  </CardContent>
+</Card>
 
 <style>
-  .editor {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 2rem;
-  }
-
-  h2 {
-    margin-bottom: 1.5rem;
-    color: var(--text-primary);
-    font-size: 1.5rem;
-  }
-
-  h3 {
-    margin: 0;
-    color: var(--text-primary);
-    font-size: 1.3rem;
-  }
-
-  .form-group {
-    margin-bottom: 1.5rem;
-  }
-
-  label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
-    color: var(--text-primary);
-  }
-
-  input,
-  select {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-    font-size: 1rem;
-    transition: all 0.2s ease;
-  }
-
-  input:focus,
-  select:focus {
-    outline: none;
-    border-color: var(--accent-primary);
-    background: var(--bg-hover);
-  }
-
-  .hint {
-    margin-top: 0.5rem;
-    font-size: 0.875rem;
-    color: var(--text-muted);
-  }
-
-  .policies-section {
-    margin-top: 2rem;
-  }
-
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-  }
-
-  .empty-state {
-    text-align: center;
-    color: var(--text-secondary);
-    padding: 2rem;
-    border: 2px dashed var(--border-color);
-    border-radius: 8px;
-    background: var(--bg-tertiary);
-  }
-
-  .policies-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
+  /* Minimal styles - most styling is done via Tailwind classes */
 </style>
-

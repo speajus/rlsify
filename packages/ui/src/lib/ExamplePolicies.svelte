@@ -2,6 +2,13 @@
   import { examplePolicies } from './examples/multi-tenant-schema.js';
   import { loadExamplePolicy, updateTable } from './stores/policy-store.js';
   import type { PolicyDefinition } from '@speajus/rlsify-types';
+  import { Button } from '$lib/components/ui/button/index.js';
+  import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '$lib/components/ui/card/index.js';
+  import { Badge } from '$lib/components/ui/badge/index.js';
+  import { Collapsible, CollapsibleContent } from '$lib/components/ui/collapsible/index.js';
+  import BookOpen from 'lucide-svelte/icons/book-open';
+  import X from 'lucide-svelte/icons/x';
+  import Lightbulb from 'lucide-svelte/icons/lightbulb';
 
   let showExamples = $state(false);
 
@@ -46,151 +53,56 @@
   }
 </script>
 
-<div class="example-policies">
-  <button class="toggle-btn" onclick={() => (showExamples = !showExamples)}>
-    {showExamples ? '✕ Hide' : '📚 Load'} Example Policies
-  </button>
+<div class="flex flex-col gap-4">
+  <Button variant={showExamples ? 'secondary' : 'default'} onclick={() => showExamples = !showExamples}>
+    {#if showExamples}
+      <X class="mr-2 h-4 w-4" />
+      Hide Examples
+    {:else}
+      <BookOpen class="mr-2 h-4 w-4" />
+      Load Example Policies
+    {/if}
+  </Button>
 
-  {#if showExamples}
-    <div class="examples-panel">
-      <h3>Multi-Tenant Permission Examples</h3>
-      <p class="hint">
-        Click an example to load it into the editor. These demonstrate common patterns for
-        organization and team-based permissions.
-      </p>
+  <Collapsible bind:open={showExamples}>
 
-      <div class="examples-list">
+  <CollapsibleContent>
+    <Card class="mt-4 border-border">
+      <CardHeader>
+        <CardTitle class="text-lg">Multi-Tenant Permission Examples</CardTitle>
+        <CardDescription>
+          Click an example to load it into the editor. These demonstrate common patterns for
+          organization and team-based permissions.
+        </CardDescription>
+      </CardHeader>
+      <CardContent class="flex flex-col gap-3">
         {#each examples as example}
-          <button class="example-item" onclick={() => loadExample(example)}>
-            <div class="example-header">
-              <strong>{example.policy.name}</strong>
-              <span class="table-badge">{example.policy.table}</span>
+          <button
+            class="flex flex-col gap-2 p-4 rounded-lg border border-border bg-background hover:border-primary/50 hover:bg-muted/50 transition-all text-left cursor-pointer"
+            onclick={() => loadExample(example)}
+          >
+            <div class="flex items-center justify-between">
+              <span class="font-medium text-foreground">{example.policy.name}</span>
+              <Badge variant="default">{example.policy.table}</Badge>
             </div>
-            <div class="example-description">{example.description}</div>
+            <div class="text-sm text-muted-foreground">{example.description}</div>
             {#if example.policy.description}
-              <div class="example-detail">{example.policy.description}</div>
+              <div class="text-xs text-muted-foreground/70 italic">{example.policy.description}</div>
             {/if}
           </button>
         {/each}
-      </div>
-
-      <div class="examples-footer">
-        <p class="hint">
-          💡 <strong>Tip:</strong> After loading an example, you can modify it or use it as a
-          template for your own policies.
-        </p>
-      </div>
-    </div>
-  {/if}
+      </CardContent>
+      <CardFooter class="border-t border-border pt-4">
+        <div class="flex items-center gap-2 text-sm text-muted-foreground">
+          <Lightbulb class="h-4 w-4" />
+          <span><strong>Tip:</strong> After loading an example, you can modify it or use it as a template for your own policies.</span>
+        </div>
+      </CardFooter>
+    </Card>
+  </CollapsibleContent>
+</Collapsible>
 </div>
 
 <style>
-  .example-policies {
-    margin-bottom: 1.5rem;
-  }
-
-  .toggle-btn {
-    padding: 0.75rem 1.5rem;
-    background: var(--accent-primary);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .toggle-btn:hover {
-    background: var(--accent-secondary);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
-  }
-
-  .examples-panel {
-    margin-top: 1rem;
-    padding: 1.5rem;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-  }
-
-  .examples-panel h3 {
-    margin: 0 0 0.5rem 0;
-    color: var(--text-primary);
-    font-size: 1.1rem;
-  }
-
-  .examples-panel > .hint {
-    margin: 0 0 1.5rem 0;
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-  }
-
-  .examples-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .example-item {
-    padding: 1rem;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    text-align: left;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .example-item:hover {
-    border-color: var(--accent-primary);
-    background: var(--bg-hover);
-    transform: translateX(4px);
-  }
-
-  .example-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 0.5rem;
-  }
-
-  .example-header strong {
-    color: var(--text-primary);
-    font-size: 0.95rem;
-  }
-
-  .table-badge {
-    padding: 0.25rem 0.5rem;
-    background: var(--accent-primary);
-    color: white;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 600;
-  }
-
-  .example-description {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-    margin-bottom: 0.25rem;
-  }
-
-  .example-detail {
-    color: var(--text-tertiary);
-    font-size: 0.8rem;
-    font-style: italic;
-  }
-
-  .examples-footer {
-    margin-top: 1.5rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border-color);
-  }
-
-  .examples-footer .hint {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-  }
+  /* Minimal styles - most styling is done via Tailwind classes */
 </style>

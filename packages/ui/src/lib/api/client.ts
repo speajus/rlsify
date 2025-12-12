@@ -17,9 +17,9 @@ const transport = createConnectTransport({
 });
 
 // Create typed clients
-export const schemaClient: Client<typeof SchemaServiceProto> = createClient(SchemaServiceProto, transport);
-export const policyClient: Client<typeof PolicyServiceProto> = createClient(PolicyServiceProto, transport);
-export const healthClient: Client<typeof HealthServiceProto> = createClient(HealthServiceProto, transport);
+export const schemaClient = createClient(SchemaServiceProto, transport);
+export const policyClient = createClient(PolicyServiceProto, transport);
+export const healthClient = createClient(HealthServiceProto, transport);
 
 // Export types for convenience
 export type {

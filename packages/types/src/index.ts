@@ -568,6 +568,13 @@ export {
   type GetPolicyResponse,
   type DeletePolicyRequest,
   type DeletePolicyResponse,
+  // Existing RLS policies from database
+  ExistingRLSPolicySchema,
+  ListExistingPoliciesRequestSchema,
+  ListExistingPoliciesResponseSchema,
+  type ExistingRLSPolicy,
+  type ListExistingPoliciesRequest,
+  type ListExistingPoliciesResponse,
 } from './gen/rlsify/v1/policy_pb.js';
 
 export {

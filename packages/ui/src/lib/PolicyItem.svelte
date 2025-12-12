@@ -3,6 +3,19 @@
   import { updatePolicy as updatePolicyStore } from './stores/policy-store.js';
   import PermissionBuilder from './PermissionBuilder.svelte';
   import VisualQueryBuilder from './VisualQueryBuilder.svelte';
+  import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
+  import { Button } from '$lib/components/ui/button/index.js';
+  import { Label } from '$lib/components/ui/label/index.js';
+  import { Input } from '$lib/components/ui/input/index.js';
+  import { Textarea } from '$lib/components/ui/textarea/index.js';
+  import { Badge } from '$lib/components/ui/badge/index.js';
+  import { Tabs, TabsList, TabsTrigger, TabsContent } from '$lib/components/ui/tabs/index.js';
+  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '$lib/components/ui/select/index.js';
+  import { TagInput } from '$lib/components/ui/tag-input/index.js';
+  import Trash2 from 'lucide-svelte/icons/trash-2';
+
+  // Common PostgreSQL roles for suggestions
+  const roleSuggestions = ['public', 'authenticated', 'anon', 'service_role', 'postgres'];
 
   interface Props {
     policy: PolicyDefinition;
@@ -17,6 +30,35 @@
   let usingEditorMode = $state<'sql' | 'json' | 'visual'>('visual');
   let checkEditorMode = $state<'sql' | 'json' | 'visual'>('visual');
 
+  // Edit-in-place state for policy name
+  let isEditingName = $state(false);
+  let editingNameValue = $state('');
+  let nameInputRef = $state<HTMLInputElement | null>(null);
+
+  function startEditingName() {
+    editingNameValue = policy.name || '';
+    isEditingName = true;
+    // Focus the input after it renders
+    setTimeout(() => nameInputRef?.focus(), 0);
+  }
+
+  function saveNameEdit() {
+    handleUpdatePolicy('name', editingNameValue);
+    isEditingName = false;
+  }
+
+  function cancelNameEdit() {
+    isEditingName = false;
+  }
+
+  function handleNameKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      saveNameEdit();
+    } else if (e.key === 'Escape') {
+      cancelNameEdit();
+    }
+  }
+
   function handleUpdatePolicy(field: keyof PolicyDefinition, value: unknown) {
     updatePolicyStore(index, field, value);
   }
@@ -24,7 +66,6 @@
   function updateUsingExpression(expr: PermissionExpression | null) {
     handleUpdatePolicy('usingExpression', expr);
     if (expr) {
-      // Clear the legacy string field when using JSON expression
       handleUpdatePolicy('using', undefined);
     }
   }
@@ -32,330 +73,177 @@
   function updateCheckExpression(expr: PermissionExpression | null) {
     handleUpdatePolicy('withCheckExpression', expr);
     if (expr) {
-      // Clear the legacy string field when using JSON expression
       handleUpdatePolicy('withCheck', undefined);
+    }
+  }
+
+  function handleCommandChange(value: string | undefined) {
+    if (value) {
+      handleUpdatePolicy('command', value);
     }
   }
 </script>
 
-<div class="policy-item">
-  <div class="policy-header">
-    <h4>Policy {index + 1}</h4>
-    <button class="remove-btn" onclick={onRemove}>Remove</button>
-  </div>
-
-  <div class="form-row">
-    <div class="form-group">
-      <label for="name-{index}">Policy Name</label>
-      <input
-        id="name-{index}"
-        type="text"
-        value={policy.name}
-        oninput={(e) => handleUpdatePolicy('name', e.currentTarget.value)}
-        placeholder="e.g., posts_select_own"
-      />
+<Card class="border-border hover:border-primary/50 transition-colors">
+  <CardHeader class="pb-4">
+    <div class="flex justify-between items-center">
+      <CardTitle class="text-base flex items-center gap-2">
+        {#if isEditingName}
+          <span class="text-muted-foreground">Policy:</span>
+          <input
+            bind:this={nameInputRef}
+            type="text"
+            bind:value={editingNameValue}
+            onblur={saveNameEdit}
+            onkeydown={handleNameKeydown}
+            class="px-2 py-0.5 text-base font-semibold bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring w-48"
+          />
+        {:else}
+          <button
+            type="button"
+            onclick={startEditingName}
+            class="hover:bg-muted px-2 py-0.5 rounded-md transition-colors cursor-text text-left"
+            title="Click to edit policy name"
+          >
+            Policy: {policy.name || `Policy ${index + 1}`}
+          </button>
+        {/if}
+        {#if policy.command}
+          <Badge variant="secondary">{policy.command}</Badge>
+        {/if}
+      </CardTitle>
+      <Button variant="destructive" size="sm" onclick={onRemove}>
+        <Trash2 class="mr-1 h-3 w-3" />
+        Remove
+      </Button>
     </div>
+  </CardHeader>
+  <CardContent class="flex flex-col gap-4 pt-0">
+    <!-- Name, Command, and Roles Row -->
+    <div class="grid grid-cols-[2fr_1fr_2fr] gap-4">
+      <div class="flex flex-col gap-2">
+        <Label for="name-{index}">Policy Name</Label>
+        <Input
+          id="name-{index}"
+          type="text"
+          value={policy.name}
+          oninput={(e) => handleUpdatePolicy('name', e.currentTarget.value)}
+          placeholder="e.g., posts_select_own"
+        />
+      </div>
 
-    <div class="form-group">
-      <label for="command-{index}">Command</label>
-      <select
-        id="command-{index}"
-        value={policy.command}
-        onchange={(e) => handleUpdatePolicy('command', e.currentTarget.value)}
-      >
-        <option value="SELECT">SELECT</option>
-        <option value="INSERT">INSERT</option>
-        <option value="UPDATE">UPDATE</option>
-        <option value="DELETE">DELETE</option>
-        <option value="ALL">ALL</option>
-      </select>
-    </div>
-  </div>
+      <div class="flex flex-col gap-2">
+        <Label for="command-{index}">Command</Label>
+        <Select type="single" value={policy.command} onValueChange={handleCommandChange}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select command">
+              {policy.command || 'Select command'}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="SELECT" label="SELECT" />
+            <SelectItem value="INSERT" label="INSERT" />
+            <SelectItem value="UPDATE" label="UPDATE" />
+            <SelectItem value="DELETE" label="DELETE" />
+            <SelectItem value="ALL" label="ALL" />
+          </SelectContent>
+        </Select>
+      </div>
 
-  <div class="form-group">
-    <div class="expression-header">
-      <label for="using-{index}">USING Expression</label>
-      <div class="mode-toggle">
-        <button
-          class="mode-btn {usingEditorMode === 'sql' ? 'active' : ''}"
-          onclick={() => {
-            usingEditorMode = 'sql';
-            // Don't clear the expression - just switch the view mode
-          }}
-        >
-          SQL
-        </button>
-        <button
-          class="mode-btn {usingEditorMode === 'json' ? 'active' : ''}"
-          onclick={() => {
-            usingEditorMode = 'json';
-            if (!policy.usingExpression) {
-              updateUsingExpression({ user_id: { _eq: { var: 'auth.uid()', type: 'uuid' } } });
-            }
-          }}
-        >
-          Templates
-        </button>
-        <button
-          class="mode-btn {usingEditorMode === 'visual' ? 'active' : ''}"
-          onclick={() => {
-            usingEditorMode = 'visual';
-            if (!policy.usingExpression) {
-              updateUsingExpression({});
-            }
-          }}
-        >
-          Visual Builder
-        </button>
+      <div class="flex flex-col gap-2">
+        <Label for="roles-{index}">Roles</Label>
+        <TagInput
+          values={policy.roles || []}
+          onUpdate={(roles) => handleUpdatePolicy('roles', roles)}
+          placeholder="Add role..."
+          suggestions={roleSuggestions}
+        />
       </div>
     </div>
 
-    {#if usingEditorMode === 'sql'}
-      <textarea
-        id="using-{index}"
-        value={policy.using || ''}
-        oninput={(e) => handleUpdatePolicy('using', e.currentTarget.value)}
-        placeholder="e.g., user_id = auth.uid()"
-        rows="2"
-      ></textarea>
-    {:else if usingEditorMode === 'json'}
-      <PermissionBuilder
-        expression={policy.usingExpression}
-        onUpdate={updateUsingExpression}
-        baseTable={baseTable}
-      />
-    {:else if usingEditorMode === 'visual'}
-      <VisualQueryBuilder
-        baseTable={baseTable}
-        expression={policy.usingExpression}
-        onUpdate={updateUsingExpression}
-        debugLabel="USING"
-      />
-    {/if}
-  </div>
-
-  <div class="form-group">
-    <div class="expression-header">
-      <label for="withCheck-{index}">WITH CHECK Expression (optional)</label>
-      <div class="mode-toggle">
-        <button
-          class="mode-btn {checkEditorMode === 'sql' ? 'active' : ''}"
-          onclick={() => {
-            checkEditorMode = 'sql';
-            // Don't clear the expression - just switch the view mode
-          }}
-        >
-          SQL
-        </button>
-        <button
-          class="mode-btn {checkEditorMode === 'json' ? 'active' : ''}"
-          onclick={() => {
-            checkEditorMode = 'json';
-            if (!policy.withCheckExpression) {
-              updateCheckExpression({ user_id: { _eq: { var: 'auth.uid()', type: 'uuid' } } });
-            }
-          }}
-        >
-          Templates
-        </button>
-        <button
-          class="mode-btn {checkEditorMode === 'visual' ? 'active' : ''}"
-          onclick={() => {
-            checkEditorMode = 'visual';
-            if (!policy.withCheckExpression) {
-              updateCheckExpression({});
-            }
-          }}
-        >
-          Visual Builder
-        </button>
+    <!-- USING Expression -->
+    <div class="flex flex-col gap-2">
+      <div class="flex justify-between items-center">
+        <Label>USING Expression</Label>
+        <Tabs bind:value={usingEditorMode} class="w-auto">
+          <TabsList class="h-8">
+            <TabsTrigger value="visual" class="text-xs px-2 py-1">Visual</TabsTrigger>
+            <TabsTrigger value="json" class="text-xs px-2 py-1" onclick={() => {
+              if (!policy.usingExpression) {
+                updateUsingExpression({ user_id: { _eq: { var: 'auth.uid()', type: 'uuid' } } });
+              }
+            }}>Templates</TabsTrigger>
+            <TabsTrigger value="sql" class="text-xs px-2 py-1">SQL</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
+
+      {#if usingEditorMode === 'sql'}
+        <Textarea
+          id="using-{index}"
+          value={policy.using || ''}
+          oninput={(e) => handleUpdatePolicy('using', e.currentTarget.value)}
+          placeholder="e.g., user_id = auth.uid()"
+          rows={2}
+        />
+      {:else if usingEditorMode === 'json'}
+        <PermissionBuilder
+          expression={policy.usingExpression}
+          onUpdate={updateUsingExpression}
+          baseTable={baseTable}
+        />
+      {:else if usingEditorMode === 'visual'}
+        <VisualQueryBuilder
+          baseTable={baseTable}
+          expression={policy.usingExpression}
+          onUpdate={updateUsingExpression}
+          debugLabel="USING"
+        />
+      {/if}
     </div>
 
-    {#if checkEditorMode === 'sql'}
-      <textarea
-        id="withCheck-{index}"
-        value={policy.withCheck || ''}
-        oninput={(e) => handleUpdatePolicy('withCheck', e.currentTarget.value)}
-        placeholder="e.g., user_id = auth.uid()"
-        rows="2"
-      ></textarea>
-    {:else if checkEditorMode === 'json'}
-      <PermissionBuilder
-        expression={policy.withCheckExpression }
-        onUpdate={updateCheckExpression}
-        baseTable={baseTable}
-      />
-    {:else if checkEditorMode === 'visual'}
-      <VisualQueryBuilder
-        baseTable={baseTable}
-        expression={policy.withCheckExpression}
-        onUpdate={updateCheckExpression}
-        debugLabel="WITH_CHECK"
-      />
-    {/if}
-  </div>
-</div>
+    <!-- WITH CHECK Expression -->
+    <div class="flex flex-col gap-2">
+      <div class="flex justify-between items-center">
+        <Label>WITH CHECK Expression (optional)</Label>
+        <Tabs bind:value={checkEditorMode} class="w-auto">
+          <TabsList class="h-8">
+            <TabsTrigger value="visual" class="text-xs px-2 py-1">Visual</TabsTrigger>
+            <TabsTrigger value="json" class="text-xs px-2 py-1" onclick={() => {
+              if (!policy.withCheckExpression) {
+                updateCheckExpression({ user_id: { _eq: { var: 'auth.uid()', type: 'uuid' } } });
+              }
+            }}>Templates</TabsTrigger>
+            <TabsTrigger value="sql" class="text-xs px-2 py-1">SQL</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
+      {#if checkEditorMode === 'sql'}
+        <Textarea
+          id="withCheck-{index}"
+          value={policy.withCheck || ''}
+          oninput={(e) => handleUpdatePolicy('withCheck', e.currentTarget.value)}
+          placeholder="e.g., user_id = auth.uid()"
+          rows={2}
+        />
+      {:else if checkEditorMode === 'json'}
+        <PermissionBuilder
+          expression={policy.withCheckExpression}
+          onUpdate={updateCheckExpression}
+          baseTable={baseTable}
+        />
+      {:else if checkEditorMode === 'visual'}
+        <VisualQueryBuilder
+          baseTable={baseTable}
+          expression={policy.withCheckExpression}
+          onUpdate={updateCheckExpression}
+          debugLabel="WITH_CHECK"
+        />
+      {/if}
+    </div>
+  </CardContent>
+</Card>
 <style>
-  .policy-item {
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 1.5rem;
-    transition: border-color 0.2s ease;
-  }
-
-  .policy-item:hover {
-    border-color: var(--border-hover);
-  }
-
-  .policy-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-  }
-
-  h4 {
-    margin: 0;
-    font-size: 1.1rem;
-    color: var(--text-primary);
-  }
-
-  .remove-btn {
-    background: var(--accent-error);
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
-    transition: all 0.2s ease;
-  }
-
-  .remove-btn:hover {
-    background: #c23032;
-    transform: translateY(-1px);
-  }
-
-  .form-row {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 1rem;
-    margin-bottom: 1rem;
-  }
-
-  .form-group {
-    margin-bottom: 1rem;
-  }
-
-  label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
-    font-size: 0.9rem;
-    color: var(--text-primary);
-  }
-
-  input,
-  select,
-  textarea {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    font-size: 0.95rem;
-    font-family: 'Courier New', monospace;
-    transition: all 0.2s ease;
-  }
-
-  input:focus,
-  select:focus,
-  textarea:focus {
-    outline: none;
-    border-color: var(--accent-primary);
-    background: var(--bg-hover);
-  }
-
-  textarea {
-    resize: vertical;
-    min-height: 60px;
-  }
-
-  select {
-    cursor: pointer;
-  }
-
-  .expression-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-  }
-
-  .mode-toggle {
-    display: flex;
-    gap: 0.25rem;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 0.25rem;
-  }
-
-  .mode-btn {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.85rem;
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    border-radius: 3px;
-    transition: all 0.2s ease;
-  }
-
-  .mode-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-  }
-
-  .mode-btn.active {
-    background: var(--accent-primary);
-    color: white;
-  }
-
-  .json-display {
-    position: relative;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 1rem;
-  }
-
-  .json-display pre {
-    margin: 0;
-    font-family: 'Courier New', monospace;
-    font-size: 0.9rem;
-    line-height: 1.6;
-    color: #58a6ff;
-  }
-
-  .json-display code {
-    color: inherit;
-  }
-
-  .edit-btn {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    padding: 0.4rem 0.8rem;
-    font-size: 0.85rem;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-  }
-
-  .edit-btn:hover {
-    background: var(--bg-hover);
-    border-color: var(--accent-primary);
-  }
+  /* Minimal styles - most styling is done via Tailwind classes */
 </style>
-

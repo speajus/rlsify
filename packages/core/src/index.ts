@@ -29,3 +29,10 @@ export * from './utils/index.js';
 // Export permission expression compiler
 export { compilePermissionExpression } from './permission-expression-compiler.js';
 
+// Export SQL expression parser (SQL → JSON conversion)
+export {
+  parseSqlExpression,
+  tryParseSqlExpression,
+  parseRlsPolicy,
+} from './services/sql-expression-parser.js';
+
