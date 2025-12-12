@@ -2,8 +2,8 @@
  * RLSify API Client - Connect-Web client for gRPC services
  */
 
-import { createClient, type Client } from '@connectrpc/connect';
 import { createConnectTransport } from '@connectrpc/connect-web';
+import { createClient } from '@connectrpc/connect';
 import {
   SchemaServiceProto,
   PolicyServiceProto,
@@ -37,5 +37,10 @@ export type {
   HealthCheckResponse,
   ReadinessCheckRequest,
   ReadinessCheckResponse,
+  TestPoliciesRequest,
+  TestPoliciesResponse,
+  SessionContextProto,
+  PolicyTestResult,
+  ExpressionResult,
 } from '@speajus/rlsify-types';
 

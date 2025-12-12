@@ -29,6 +29,9 @@ import {
   PolicyDefinitionSchema,
   ListExistingPoliciesResponseSchema,
   ExistingRLSPolicySchema,
+  TestPoliciesResponseSchema,
+  PolicyTestResultSchema,
+  ExpressionResultSchema,
   type PreviewPoliciesRequest,
   type ValidateConfigRequest,
   type ApplyPoliciesRequest,
@@ -37,6 +40,7 @@ import {
   type GetPolicyRequest,
   type DeletePolicyRequest,
   type ListExistingPoliciesRequest,
+  type TestPoliciesRequest,
   type RLSPolicyConfig,
 } from '@speajus/rlsify-types';
 import { tryParseSqlExpression } from '@speajus/rlsify-core';
@@ -391,6 +395,226 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
     });
 
     return create(ListExistingPoliciesResponseSchema, { policies });
+  }
+
+  async testPolicies(request: TestPoliciesRequest) {
+    const { policies, session, rowDataJson, operation } = request;
+
+    if (!policies || policies.length === 0) {
+      return create(TestPoliciesResponseSchema, {
+        results: [],
+        error: 'No policies to test',
+      });
+    }
+
+    // Parse the sample row data
+    let rowData: Record<string, unknown>;
+    try {
+      rowData = JSON.parse(rowDataJson || '{}');
+    } catch {
+      return create(TestPoliciesResponseSchema, {
+        results: [],
+        error: 'Invalid row data JSON',
+      });
+    }
+
+    let client: import('pg').PoolClient;
+    try {
+      client = await this.pool.connect();
+    } catch (connError) {
+      return create(TestPoliciesResponseSchema, {
+        results: [],
+        error: `Database connection failed: ${connError instanceof Error ? connError.message : 'Unknown error'}`,
+      });
+    }
+    const results = [];
+
+    try {
+      // Start a transaction so we can set session variables
+      await client.query('BEGIN');
+
+      // Set session variables for auth context using set_config (supports parameterized queries)
+      if (session?.userId) {
+        await client.query(`SELECT set_config('auth.current_user_id', $1, true)`, [session.userId]);
+      }
+
+      // Set JWT claims if provided
+      if (session?.claimsJson) {
+        await client.query(`SELECT set_config('request.jwt.claims', $1, true)`, [session.claimsJson]);
+      }
+
+      // Set role if provided (for role-based checks)
+      if (session?.role) {
+        await client.query(`SELECT set_config('request.jwt.claim.role', $1, true)`, [session.role]);
+      }
+
+      // Test each policy
+      for (const policy of policies) {
+        const policyResult = await this.evaluatePolicyExpression(
+          client,
+          policy,
+          rowData,
+          this.mapCommand(operation)
+        );
+        results.push(policyResult);
+      }
+
+      // Rollback - we don't want to persist any changes
+      await client.query('ROLLBACK');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      return create(TestPoliciesResponseSchema, {
+        results: [],
+        error: error instanceof Error ? error.message : 'Unknown error during policy testing',
+      });
+    } finally {
+      client.release();
+    }
+
+    return create(TestPoliciesResponseSchema, { results });
+  }
+
+  private async evaluatePolicyExpression(
+    client: import('pg').PoolClient,
+    policy: TestPoliciesRequest['policies'][number],
+    rowData: Record<string, unknown>,
+    operation: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'ALL'
+  ) {
+    // Determine which expressions to evaluate based on operation
+    const needsUsing = operation !== 'INSERT';
+    const needsWithCheck = operation === 'INSERT' || operation === 'UPDATE' || operation === 'ALL';
+
+    let usingResult = create(ExpressionResultSchema, { allowed: true, reason: 'No USING expression' });
+    let withCheckResult = create(ExpressionResultSchema, { allowed: true, reason: 'No WITH CHECK expression' });
+
+    // Evaluate USING expression
+    if (needsUsing && policy.usingExpression) {
+      usingResult = await this.evaluateJsonExpression(client, policy.usingExpression, rowData, 'USING');
+    } else if (needsUsing && policy.using) {
+      usingResult = await this.evaluateSqlExpression(client, policy.using, rowData, 'USING');
+    }
+
+    // Evaluate WITH CHECK expression
+    if (needsWithCheck && policy.withCheckExpression) {
+      withCheckResult = await this.evaluateJsonExpression(client, policy.withCheckExpression, rowData, 'WITH CHECK');
+    } else if (needsWithCheck && policy.withCheck) {
+      withCheckResult = await this.evaluateSqlExpression(client, policy.withCheck, rowData, 'WITH CHECK');
+    }
+
+    // Determine overall allowed based on operation
+    let overallAllowed = true;
+    if (operation === 'SELECT' || operation === 'DELETE') {
+      overallAllowed = usingResult.allowed;
+    } else if (operation === 'INSERT') {
+      overallAllowed = withCheckResult.allowed;
+    } else if (operation === 'UPDATE' || operation === 'ALL') {
+      overallAllowed = usingResult.allowed && withCheckResult.allowed;
+    }
+
+    return create(PolicyTestResultSchema, {
+      policyName: policy.name,
+      usingResult,
+      withCheckResult,
+      overallAllowed,
+    });
+  }
+
+  private async evaluateJsonExpression(
+    client: import('pg').PoolClient,
+    expressionJson: unknown,
+    rowData: Record<string, unknown>,
+    expressionType: string
+  ) {
+    try {
+      // First, compile the JSON expression to SQL using the stored procedure
+      const compileResult = await client.query<{ compile_expression: string }>(
+        'SELECT rls.compile_expression($1::jsonb)',
+        [JSON.stringify(expressionJson)]
+      );
+
+      const sqlExpression = compileResult.rows[0]?.compile_expression || 'true';
+
+      // Now evaluate the SQL expression against the row data
+      return await this.evaluateSqlExpression(client, sqlExpression, rowData, expressionType);
+    } catch (error) {
+      return create(ExpressionResultSchema, {
+        allowed: false,
+        reason: `Failed to compile ${expressionType} expression: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
+    }
+  }
+
+  private async evaluateSqlExpression(
+    client: import('pg').PoolClient,
+    sqlExpression: string,
+    rowData: Record<string, unknown>,
+    expressionType: string
+  ) {
+    try {
+      // Build a query that evaluates the expression against the row data
+      // We create a CTE with the row data and then evaluate the expression
+      const columns = Object.keys(rowData);
+      const values = Object.values(rowData);
+
+      if (columns.length === 0) {
+        // No row data, just evaluate the expression directly
+        const result = await client.query<{ result: boolean }>(
+          `SELECT (${sqlExpression})::boolean AS result`
+        );
+        const allowed = result.rows[0]?.result ?? false;
+        return create(ExpressionResultSchema, {
+          allowed,
+          reason: allowed ? 'Expression evaluated to true' : 'Expression evaluated to false',
+          sqlExpression,
+        });
+      }
+
+      // Build column definitions for the CTE
+      // We need to infer types from the values
+      const columnDefs = columns.map((col, i) => {
+        const val = values[i];
+        let typeCast = '::text';
+        if (typeof val === 'number') {
+          typeCast = Number.isInteger(val) ? '::integer' : '::numeric';
+        } else if (typeof val === 'boolean') {
+          typeCast = '::boolean';
+        } else if (val === null) {
+          typeCast = '::text';
+        } else if (typeof val === 'string') {
+          // Check if it looks like a UUID
+          if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val)) {
+            typeCast = '::uuid';
+          } else if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
+            typeCast = '::timestamptz';
+          }
+        }
+        return `$${i + 1}${typeCast} AS ${col}`;
+      });
+
+      // Build the query
+      const query = `
+        WITH row_data AS (
+          SELECT ${columnDefs.join(', ')}
+        )
+        SELECT (${sqlExpression})::boolean AS result
+        FROM row_data
+      `;
+
+      const result = await client.query<{ result: boolean }>(query, values);
+      const allowed = result.rows[0]?.result ?? false;
+
+      return create(ExpressionResultSchema, {
+        allowed,
+        reason: allowed ? 'Expression evaluated to true' : 'Expression evaluated to false',
+        sqlExpression,
+      });
+    } catch (error) {
+      return create(ExpressionResultSchema, {
+        allowed: false,
+        reason: `Failed to evaluate ${expressionType} expression: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        sqlExpression,
+      });
+    }
   }
 
   private rowToSavedPolicy(row: { id: string; config: unknown; description?: string; created_at: Date; updated_at: Date }) {

@@ -575,6 +575,17 @@ export {
   type ExistingRLSPolicy,
   type ListExistingPoliciesRequest,
   type ListExistingPoliciesResponse,
+  // Policy testing
+  SessionContextSchema,
+  ExpressionResultSchema,
+  PolicyTestResultSchema,
+  TestPoliciesRequestSchema,
+  TestPoliciesResponseSchema,
+  type SessionContext as SessionContextProto,
+  type ExpressionResult,
+  type PolicyTestResult,
+  type TestPoliciesRequest,
+  type TestPoliciesResponse,
 } from './gen/rlsify/v1/policy_pb.js';
 
 export {

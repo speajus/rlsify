@@ -36,3 +36,14 @@ export {
   parseRlsPolicy,
 } from './services/sql-expression-parser.js';
 
+// Export expression evaluator (for client-side policy testing)
+export {
+  evaluateExpression,
+  evaluatePolicy,
+  type SessionContext,
+  type RowData,
+  type RelatedData,
+  type EvaluationResult,
+  type PolicyEvaluationResult,
+} from './services/expression-evaluator.js';
+

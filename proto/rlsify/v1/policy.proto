@@ -209,6 +209,60 @@ message ListExistingPoliciesResponse {
   repeated ExistingRLSPolicy policies = 1;
 }
 
+// Session context for policy testing
+message SessionContext {
+  // User ID (auth.uid() value)
+  string user_id = 1;
+  // PostgreSQL role name
+  string role = 2;
+  // JWT claims as JSON string
+  string claims_json = 3;
+}
+
+// Result of evaluating a single policy expression
+message ExpressionResult {
+  // Whether the expression allowed the operation
+  bool allowed = 1;
+  // Human-readable reason/error
+  optional string reason = 2;
+  // The generated SQL expression that was evaluated
+  optional string sql_expression = 3;
+}
+
+// Result of testing a single policy
+message PolicyTestResult {
+  // Policy name
+  string policy_name = 1;
+  // USING expression result (for SELECT/UPDATE/DELETE)
+  ExpressionResult using_result = 2;
+  // WITH CHECK expression result (for INSERT/UPDATE)
+  ExpressionResult with_check_result = 3;
+  // Overall allowed based on operation
+  bool overall_allowed = 4;
+}
+
+// Request to test policies against sample data
+message TestPoliciesRequest {
+  // The table to test (schema.table format)
+  string table = 1;
+  // Policies to test
+  repeated PolicyDefinition policies = 2;
+  // Session context (role, user ID, claims)
+  SessionContext session = 3;
+  // Sample row data as JSON string
+  string row_data_json = 4;
+  // Operation being tested (SELECT, INSERT, UPDATE, DELETE)
+  PolicyCommand operation = 5;
+}
+
+// Response with policy test results
+message TestPoliciesResponse {
+  // Results for each policy
+  repeated PolicyTestResult results = 1;
+  // Any error that occurred during testing
+  optional string error = 2;
+}
+
 // Policy management service
 service PolicyService {
   // Generate SQL preview from configuration
@@ -234,5 +288,8 @@ service PolicyService {
 
   // List existing RLS policies from the database
   rpc ListExistingPolicies(ListExistingPoliciesRequest) returns (ListExistingPoliciesResponse);
+
+  // Test policies against sample data using PostgreSQL evaluation
+  rpc TestPolicies(TestPoliciesRequest) returns (TestPoliciesResponse);
 }
 
