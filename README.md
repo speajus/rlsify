@@ -4,6 +4,8 @@
 
 RLSify is a monorepo containing tools for defining, generating, and managing PostgreSQL RLS policies through code, templates, and a visual UI.
 
+![RLSify UI](assets/ui-screenshot.png)
+
 ## 📦 Packages
 
 ### Core Libraries
@@ -117,6 +119,56 @@ await adapter.writeMigration(config, 'add_posts_rls', './supabase/migrations');
 - ✅ **Policy Simulation**: Test policies before deployment
 - 🔐 **Supabase Integration**: First-class support for Supabase auth helpers
 - 🏗️ **Dependency Injection**: Clean architecture with @speajus/diblob
+
+## 🎨 Using the Visual UI
+
+The RLSify UI provides a visual interface for building PostgreSQL Row-Level Security policies without writing SQL manually.
+
+### Starting the UI
+
+```bash
+# Using Docker (recommended)
+npm run docker:up
+open http://localhost:5174
+
+# Or for local development
+cd packages/ui && pnpm dev
+```
+
+### Quick Start: Create Your First Policy
+
+| Step | Action |
+|------|--------|
+| 1 | Select a table from the dropdown (e.g., `public.documents`) |
+| 2 | Click **"+ Add Policy"** |
+| 3 | Choose command type (SELECT, INSERT, UPDATE, DELETE) |
+| 4 | Name your policy (e.g., `documents_owner_access`) |
+| 5 | Click **"+ Add Condition"** in the USING Expression |
+| 6 | Select field → operator → value type → value |
+| 7 | Click **"Show SQL Preview"** to review |
+| 8 | Click **"Save Policy"** |
+
+### Example: User-Owned Documents Policy
+
+To create a policy where users can only see their own documents:
+
+1. Select `public.documents` table
+2. Add a policy named `documents_owner_access` with type `SELECT`
+3. Add condition: `created_by` = Session Variable `auth.uid()`
+4. The generated SQL will be:
+   ```sql
+   CREATE POLICY documents_owner_access ON public.documents
+   FOR SELECT TO authenticated
+   USING (created_by = auth.uid());
+   ```
+
+### 📖 Visual Step-by-Step Guide
+
+For a complete walkthrough with screenshots, see the **[Visual Step-by-Step Guide](./docs/guide/visual-step-by-step.md)**.
+
+### Testing Policies
+
+Use the **Policy Tester** section to simulate queries as different users and verify your policies work correctly before deploying.
 
 ## 📚 Documentation
 

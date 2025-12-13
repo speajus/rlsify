@@ -50,7 +50,10 @@
     "docker:ui:logs": "docker-compose logs -f ui",
     "docker:postgres:logs": "docker-compose logs -f postgres",
     "docker:demo": "./docker/scripts/demo-workflow.sh",
-    "docker:validate": "./docker/scripts/validate-setup.sh"
+    "docker:validate": "./docker/scripts/validate-setup.sh",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "devDependencies": {
     "@bufbuild/buf": "^1.50.0",
@@ -60,7 +63,8 @@
     "@connectrpc/connect": "^2.1.0",
     "@types/node": "^20.11.0",
     "typescript": "^5.3.3",
-    "vitest": "^1.2.0"
+    "vitepress": "^1.6.4",
+    "vitest": "^1.2.0",
+    "vue": "^3.5.25"
   }
 }
-
