@@ -9,26 +9,11 @@ import { Pool } from 'pg';
 import { SchemaServiceImpl } from './services/schema-service.js';
 import { PolicyServiceImpl } from './services/policy-service.js';
 import { HealthServiceImpl } from './services/health-service.js';
+import { registerConfigBlobs, type ServiceConfig } from './config.js';
 
-// ============================================================================
-// Configuration Blobs
-// ============================================================================
-
-export interface DatabaseConfig {
-  host: string;
-  port: number;
-  database: string;
-  user: string;
-  password: string;
-}
-
-export interface GrpcConfig {
-  host: string;
-  port: number;
-}
-
-export const databaseConfigBlob = createBlob<DatabaseConfig>('DatabaseConfig');
-export const grpcConfigBlob = createBlob<GrpcConfig>('GrpcConfig');
+// Re-export config types and blobs for convenience
+export { databaseConfigBlob, grpcConfigBlob } from './config.js';
+export type { DatabaseConfig, GrpcConfig, ServiceConfig } from './config.js';
 
 // ============================================================================
 // Infrastructure Blobs
@@ -48,29 +33,32 @@ export const healthServiceBlob = createBlob<HealthServiceImpl>('HealthService');
 // Container Factory
 // ============================================================================
 
-export interface ServiceContainerOptions {
-  database: DatabaseConfig;
-  grpc: GrpcConfig;
-}
-
 /**
- * Create a new RLSify service container with all dependencies registered
+ * Create a new RLSify service container with all dependencies registered.
+ * Configuration is loaded automatically from environment variables using
+ * @speajus/diblob-config.
+ *
+ * Environment variables (with RLSIFY_ prefix):
+ * - RLSIFY_DATABASE_HOST, RLSIFY_DATABASE_PORT, etc.
+ *
+ * Legacy environment variables (also supported):
+ * - POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+ * - GRPC_HOST, GRPC_PORT
  */
-export function createServiceContainer(options: ServiceContainerOptions) {
+export function createServiceContainer(): { container: ReturnType<typeof createDiblobContainer>; config: ServiceConfig } {
   const container = createDiblobContainer();
+
+  // Register configuration blobs using @speajus/diblob-config
+  const config = registerConfigBlobs(container);
 
   // Create infrastructure instances eagerly
   const dbPool = new Pool({
-    host: options.database.host,
-    port: options.database.port,
-    database: options.database.database,
-    user: options.database.user,
-    password: options.database.password,
+    host: config.database.host,
+    port: config.database.port,
+    database: config.database.database,
+    user: config.database.user,
+    password: config.database.password,
   });
-
-  // Register configuration
-  container.register(databaseConfigBlob, () => options.database);
-  container.register(grpcConfigBlob, () => options.grpc);
 
   // Register database pool
   container.register(databasePoolBlob, () => dbPool);
@@ -80,25 +68,6 @@ export function createServiceContainer(options: ServiceContainerOptions) {
   container.register(policyServiceBlob, () => new PolicyServiceImpl(dbPool));
   container.register(healthServiceBlob, () => new HealthServiceImpl(dbPool));
 
-  return container;
-}
-
-/**
- * Load configuration from environment variables
- */
-export function loadConfigFromEnv(): ServiceContainerOptions {
-  return {
-    database: {
-      host: process.env.POSTGRES_HOST || 'localhost',
-      port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
-      database: process.env.POSTGRES_DB || 'rlsify',
-      user: process.env.POSTGRES_USER || 'rlsify',
-      password: process.env.POSTGRES_PASSWORD || 'rlsify_dev_password',
-    },
-    grpc: {
-      host: process.env.GRPC_HOST || '0.0.0.0',
-      port: parseInt(process.env.GRPC_PORT || '50051', 10),
-    },
-  };
+  return { container, config };
 }
 

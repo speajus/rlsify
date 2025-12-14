@@ -16,11 +16,13 @@
     "@connectrpc/connect": "^2.1.0",
     "@connectrpc/connect-node": "^2.1.0",
     "@speajus/diblob": "^1.0.2",
+    "@speajus/diblob-config": "^1.0.2",
     "@speajus/diblob-connect": "^1.0.2",
     "@speajus/diblob-logger": "^1.0.2",
     "@speajus/rlsify-core": "workspace:*",
     "@speajus/rlsify-types": "workspace:*",
-    "pg": "^8.13.0"
+    "pg": "^8.13.0",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

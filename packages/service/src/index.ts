@@ -6,7 +6,8 @@
  * - Policy generation and validation via gRPC
  * - Policy application to database via gRPC
  *
- * Uses @speajus/diblob for dependency injection and
+ * Uses @speajus/diblob for dependency injection,
+ * @speajus/diblob-config for configuration management, and
  * @speajus/diblob-connect for gRPC server integration.
  */
 
@@ -25,16 +26,14 @@ import {
 
 import {
   createServiceContainer,
-  loadConfigFromEnv,
   databasePoolBlob,
 } from './container.js';
 import { SchemaServiceImpl } from './services/schema-service.js';
 import { PolicyServiceImpl } from './services/policy-service.js';
 import { HealthServiceImpl } from './services/health-service.js';
 
-// Load configuration and create container
-const config = loadConfigFromEnv();
-const container = createServiceContainer(config);
+// Create container with configuration loaded via @speajus/diblob-config
+const { container, config } = createServiceContainer();
 
 // Register logger blobs (required by diblob-connect)
 registerLoggerBlobs(container);
@@ -85,5 +84,5 @@ async function start() {
 
 start();
 
-export { container };
+export { container, config };
 
