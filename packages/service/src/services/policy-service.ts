@@ -6,7 +6,6 @@ import type { Pool } from 'pg';
 import { create, type JsonObject } from '@bufbuild/protobuf';
 import type { ServiceImpl } from '@connectrpc/connect';
 import {
-  createContainer,
   policyValidatorBlob,
   type PolicyValidator,
 } from '@speajus/rlsify-core';
@@ -46,12 +45,9 @@ import {
 import { tryParseSqlExpression } from '@speajus/rlsify-core';
 
 export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto> {
-  private coreContainer = createContainer();
-  private validator: PolicyValidator;
 
-  constructor(private pool: Pool) {
+  constructor(private pool: Pool, private validator: PolicyValidator = policyValidatorBlob) {
     // Resolve services from the container
-    this.validator = this.coreContainer.resolve(policyValidatorBlob) as PolicyValidator;
   }
 
   async previewPolicies(request: PreviewPoliciesRequest) {

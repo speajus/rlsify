@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { policyConfig, addPolicy, removePolicy, updateTable, savePolicy, fetchPolicies, policySaving, currentPolicyId, hasUnsavedChanges } from './stores/policy-store.js';
+  import { policyConfig, addPolicy, removePolicy, updateTable, savePolicy, fetchPolicies, policySaving, currentPolicyId, hasUnsavedChanges, policyDescription, updateDescription } from './stores/policy-store.js';
   import { schema, foreignKeys } from './stores/schema-store.js';
   import PolicyItem from './PolicyItem.svelte';
   import PolicyTester from './PolicyTester.svelte';
@@ -7,6 +7,7 @@
   import { Button } from '$lib/components/ui/button/index.js';
   import { Label } from '$lib/components/ui/label/index.js';
   import { Input } from '$lib/components/ui/input/index.js';
+  import { Textarea } from '$lib/components/ui/textarea/index.js';
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '$lib/components/ui/select/index.js';
   import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '$lib/components/ui/collapsible/index.js';
   import { Badge } from '$lib/components/ui/badge/index.js';
@@ -24,9 +25,13 @@
   let tableName = $state('');
 
   async function handleSave() {
-    const description = prompt('Enter a description for this policy (optional):');
-    await savePolicy(description ?? undefined);
+    await savePolicy();
     await fetchPolicies();
+  }
+
+  function handleDescriptionChange(e: Event) {
+    const target = e.target as HTMLTextAreaElement;
+    updateDescription(target.value);
   }
 
   // Get available tables from schema
@@ -187,6 +192,20 @@
           </CollapsibleContent>
         </Collapsible>
       {/if}
+    </div>
+
+    <!-- Description Field -->
+    <div class="flex flex-col gap-2">
+      <Label for="description">Description</Label>
+      <Textarea
+        id="description"
+        value={$policyDescription}
+        oninput={handleDescriptionChange}
+        placeholder="Describe what this policy configuration does..."
+        rows={2}
+        class="resize-none"
+      />
+      <p class="text-sm text-muted-foreground">A brief description of the policy configuration for documentation.</p>
     </div>
 
     <!-- Policies Section -->

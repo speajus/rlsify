@@ -2,17 +2,18 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'RLSify',
-  description: 'Simplify PostgreSQL Row-Level Security policies with TypeScript',
+  description: 'Visual PostgreSQL Row-Level Security policy builder',
   base: '/rlsify/',
-  
+
   head: [
     ['link', { rel: 'icon', href: '/rlsify/favicon.ico' }]
   ],
 
   themeConfig: {
     logo: '/logo.svg',
-    
+
     nav: [
+      { text: 'Visual UI', link: '/guide/visual-step-by-step' },
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'Reference', link: '/reference/expression-language' },
       { text: 'Examples', link: '/examples/basic-patterns' },
@@ -22,12 +23,17 @@ export default defineConfig({
     sidebar: {
       '/guide/': [
         {
-          text: 'Introduction',
+          text: '🎨 Visual UI',
+          items: [
+            { text: 'Visual Step-by-Step', link: '/guide/visual-step-by-step' },
+            { text: 'Docker Setup', link: '/guide/docker-setup' }
+          ]
+        },
+        {
+          text: 'Getting Started',
           items: [
             { text: 'What is RLSify?', link: '/guide/what-is-rlsify' },
-            { text: 'Getting Started', link: '/guide/getting-started' },
-            { text: 'Docker Setup', link: '/guide/docker-setup' },
-            { text: 'Visual Step-by-Step', link: '/guide/visual-step-by-step' }
+            { text: 'Quick Start', link: '/guide/getting-started' }
           ]
         },
         {

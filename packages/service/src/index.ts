@@ -41,8 +41,7 @@ registerLoggerBlobs(container);
 // Graceful shutdown
 async function shutdown() {
   console.log('\nShutting down gracefully...');
-  const pool = container.resolve(databasePoolBlob) as Pool;
-  await pool.end();
+  await container.dispose();
   process.exit(0);
 }
 
@@ -55,7 +54,7 @@ async function start() {
     console.log(`Connecting to database at ${config.database.host}:${config.database.port}/${config.database.database}...`);
 
     // Get the database pool
-    const dbPool = container.resolve(databasePoolBlob) as Pool;
+    const dbPool = await container.resolve(databasePoolBlob);
 
     // Register gRPC server with diblob-connect
     registerGrpcBlobs(container, {
@@ -63,7 +62,7 @@ async function start() {
       port: config.grpc.port,
     });
 
-    // Register gRPC services - create service instances directly
+    // Register gRPC services - create service instances
     grpcServiceRegistry.registerService(SchemaServiceProto, new SchemaServiceImpl(dbPool));
     grpcServiceRegistry.registerService(PolicyServiceProto, new PolicyServiceImpl(dbPool));
     grpcServiceRegistry.registerService(HealthServiceProto, new HealthServiceImpl(dbPool));

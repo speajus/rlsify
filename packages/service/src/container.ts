@@ -10,6 +10,7 @@ import { SchemaServiceImpl } from './services/schema-service.js';
 import { PolicyServiceImpl } from './services/policy-service.js';
 import { HealthServiceImpl } from './services/health-service.js';
 import { registerConfigBlobs, type ServiceConfig } from './config.js';
+import { policyValidatorBlob } from '@speajus/rlsify-core';
 
 // Re-export config types and blobs for convenience
 export { databaseConfigBlob, grpcConfigBlob } from './config.js';
@@ -52,7 +53,8 @@ export function createServiceContainer(): { container: ReturnType<typeof createD
   const config = registerConfigBlobs(container);
 
   // Create infrastructure instances eagerly
-  const dbPool = new Pool({
+  // Register database pool
+  container.register(databasePoolBlob, Pool, {
     host: config.database.host,
     port: config.database.port,
     database: config.database.database,
@@ -60,13 +62,10 @@ export function createServiceContainer(): { container: ReturnType<typeof createD
     password: config.database.password,
   });
 
-  // Register database pool
-  container.register(databasePoolBlob, () => dbPool);
-
   // Register service implementations
-  container.register(schemaServiceBlob, () => new SchemaServiceImpl(dbPool));
-  container.register(policyServiceBlob, () => new PolicyServiceImpl(dbPool));
-  container.register(healthServiceBlob, () => new HealthServiceImpl(dbPool));
+  container.register(schemaServiceBlob, SchemaServiceImpl, databasePoolBlob);
+  container.register(policyServiceBlob, PolicyServiceImpl, databasePoolBlob, policyValidatorBlob);
+  container.register(healthServiceBlob, HealthServiceImpl, databasePoolBlob);
 
   return { container, config };
 }

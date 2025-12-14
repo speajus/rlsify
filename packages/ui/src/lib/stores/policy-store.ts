@@ -3,7 +3,7 @@
  * Uses Connect-Web client to communicate with gRPC backend
  */
 
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import type { RLSPolicyConfig, JoinDefinition, PolicyDefinition, SavedPolicy, ExistingRLSPolicy } from '@speajus/rlsify-types';
 import { policyClient } from '../api/client.js';
 
@@ -19,6 +19,7 @@ interface PolicyState {
   config: RLSPolicyConfig;
   lastSavedConfig: RLSPolicyConfig | null;
   savedPolicyId: string | null;
+  description: string;
   savedPolicies: SavedPolicy[];
   existingPolicies: ExistingRLSPolicy[];
   loading: boolean;
@@ -30,6 +31,7 @@ const state = writable<PolicyState>({
   config: initialConfig,
   lastSavedConfig: null,
   savedPolicyId: null,
+  description: '',
   savedPolicies: [],
   existingPolicies: [],
   loading: false,
@@ -45,6 +47,7 @@ export const policyLoading = derived(state, ($state) => $state.loading);
 export const policySaving = derived(state, ($state) => $state.saving);
 export const policyError = derived(state, ($state) => $state.error);
 export const currentPolicyId = derived(state, ($state) => $state.savedPolicyId);
+export const policyDescription = derived(state, ($state) => $state.description);
 
 // Check if there are unsaved changes
 export const hasUnsavedChanges = derived(state, ($state) => {
@@ -117,6 +120,14 @@ export function resetConfig() {
     config: initialConfig,
     lastSavedConfig: null,
     savedPolicyId: null,
+    description: '',
+  }));
+}
+
+export function updateDescription(description: string) {
+  state.update((s) => ({
+    ...s,
+    description,
   }));
 }
 
@@ -163,23 +174,18 @@ export function loadExamplePolicy(policy: PolicyDefinition, table: string) {
 
 /**
  * Save policy to backend
+ * Uses the description from the store state
  */
-export async function savePolicy(description?: string): Promise<void> {
+export async function savePolicy(): Promise<void> {
   state.update((s) => ({ ...s, saving: true, error: null }));
 
   try {
-    let currentState: PolicyState | null = null;
-    const unsubscribe = state.subscribe((s) => {
-      currentState = s;
-    });
-    unsubscribe();
-
-    if (!currentState) return;
+    const currentState = get(state);
 
     const response = await policyClient.savePolicy({
       config: convertToProtoConfig(currentState.config),
       id: currentState.savedPolicyId ?? undefined,
-      description,
+      description: currentState.description || undefined,
     });
 
     if (response.policy) {
@@ -236,6 +242,7 @@ export async function fetchPolicy(id: string): Promise<void> {
         config,
         lastSavedConfig: JSON.parse(JSON.stringify(config)), // Deep copy
         savedPolicyId: response.policy?.id ?? null,
+        description: response.policy?.description ?? '',
         loading: false,
       }));
     }

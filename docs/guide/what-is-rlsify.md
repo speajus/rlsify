@@ -1,10 +1,12 @@
 # What is RLSify?
 
-RLSify is a TypeScript monorepo that simplifies the creation and management of PostgreSQL Row-Level Security (RLS) policies. It provides tools for defining policies through code, templates, and a visual UI.
+RLSify is a **visual policy builder** for PostgreSQL Row-Level Security (RLS). Create, test, and deploy access control policies without writing SQL.
+
+![RLSify Visual UI](/images/guide-step-10.png)
 
 ## The Problem
 
-PostgreSQL Row-Level Security is a powerful feature that allows you to restrict which rows users can access or modify based on policies you define. However, writing and managing RLS policies can be challenging:
+PostgreSQL Row-Level Security is powerful but challenging to work with:
 
 - **Complex SQL syntax** - RLS policies require understanding PostgreSQL's policy syntax
 - **No type safety** - Raw SQL strings offer no compile-time checking
@@ -14,25 +16,27 @@ PostgreSQL Row-Level Security is a powerful feature that allows you to restrict 
 
 ## The Solution
 
-RLSify addresses these challenges with:
+### 🎨 Visual Policy Builder
 
-### 1. JSON Expression Language
+Build RLS policies with a point-and-click interface:
 
-Instead of writing raw SQL, define policies using structured JSON that's easy to read and validate:
+- **Select tables** from your database schema
+- **Build conditions** using dropdowns and form inputs
+- **Preview SQL** generated in real-time
+- **Test policies** before deploying
 
-```json
-{
-  "user_id": {
-    "_eq": { "var": "auth.uid()", "type": "uuid" }
-  }
-}
+::: tip Try It Now
+```bash
+git clone https://github.com/speajus/rlsify.git
+cd rlsify && pnpm install
+pnpm docker:setup && pnpm docker:up
+open http://localhost:5174
 ```
+:::
 
-Compiles to: `user_id = auth.uid()`
+### TypeScript API
 
-### 2. TypeScript Support
-
-Full type definitions for policies, expressions, and configurations:
+For programmatic policy generation, use the TypeScript packages:
 
 ```typescript
 import type { PolicyDefinition } from '@speajus/rlsify-types';
@@ -46,26 +50,32 @@ const policy: PolicyDefinition = {
 };
 ```
 
-### 3. Visual Builder
+### JSON Expression Language
 
-A Svelte-based web UI that lets you build policies visually without writing code.
+Define policies using structured JSON that compiles to SQL:
 
-### 4. PostgreSQL Stored Procedures
+```json
+{
+  "user_id": {
+    "_eq": { "var": "auth.uid()", "type": "uuid" }
+  }
+}
+```
 
-Server-side functions that compile JSON expressions to SQL and apply policies directly in the database.
+Compiles to: `user_id = auth.uid()`
 
-### 5. Test Containers
+### Built-in Policy Testing
 
-Integration with `@testcontainers/postgresql` for realistic testing of RLS policies.
+Test policies against real data before deploying to production.
 
 ## Packages
 
 | Package | Description |
 |---------|-------------|
-| `@speajus/rlsify-types` | TypeScript type definitions |
+| `@speajus/rlsify-ui` | Visual policy builder (Svelte) |
 | `@speajus/rlsify-core` | Core library for policy generation |
+| `@speajus/rlsify-types` | TypeScript type definitions |
 | `@speajus/rlsify-supabase` | Supabase adapter with auth helpers |
-| `@speajus/rlsify-ui` | Svelte-based visual builder |
 
 ## Use Cases
 
@@ -77,7 +87,8 @@ Integration with `@testcontainers/postgresql` for realistic testing of RLS polic
 
 ## Next Steps
 
-- [Getting Started](/guide/getting-started) - Set up RLSify in 5 minutes
-- [Docker Setup](/guide/docker-setup) - Try the complete environment with Docker
+- [Visual Step-by-Step Guide](/guide/visual-step-by-step) - Create your first policy with the UI
+- [Getting Started](/guide/getting-started) - Quick start guide
+- [Docker Setup](/guide/docker-setup) - Run the complete environment
 - [Expression Language](/guide/expression-language) - Learn the JSON policy syntax
 
