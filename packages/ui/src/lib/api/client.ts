@@ -1,25 +1,34 @@
 /**
  * RLSify API Client - Connect-Web client for gRPC services
+ *
+ * Supports both HTTP transport (for web) and injectable clients (for Electron IPC).
  */
 
 import { createConnectTransport } from '@connectrpc/connect-web';
-import { createClient } from '@connectrpc/connect';
+import { createClient, type Client, type Transport } from '@connectrpc/connect';
 import {
-  SchemaServiceProto,
-  PolicyServiceProto,
-  HealthServiceProto,
+  SchemaService,
+  PolicyService,
+  HealthService,
 } from '@speajus/rlsify-types';
+import { type Container, createBlob } from '@speajus/diblob';
 
-// Create the transport - uses Connect protocol over HTTP
-// Use empty baseUrl to use the same origin (goes through Vite proxy in dev)
-const transport = createConnectTransport({
-  baseUrl: '',
-});
+export const schemaClient = createBlob<Client<typeof SchemaService>>('SchemaClient');
+export const policyClient = createBlob<Client<typeof PolicyService>>('PolicyClient');
+export const healthClient = createBlob<Client<typeof HealthService>>('HealthClient');
+/**
+ * Configure custom clients (e.g., IPC-based clients for Electron).
+ * Must be called before accessing any client.
+ */
+export function configureClients(container:Container, transport:Transport = createConnectTransport({
+    baseUrl: '',
+  })): void {
+  container.register(schemaClient, createClient, SchemaService, transport);
+  container.register(policyClient, createClient, PolicyService, transport);   
+  container.register(healthClient, createClient, HealthService, transport);
 
-// Create typed clients
-export const schemaClient = createClient(SchemaServiceProto, transport);
-export const policyClient = createClient(PolicyServiceProto, transport);
-export const healthClient = createClient(HealthServiceProto, transport);
+}
+
 
 // Export types for convenience
 export type {

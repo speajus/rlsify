@@ -2,6 +2,7 @@
   import type { PermissionExpression, TableInfo, ForeignKeyRelation, FKNavigationStep, PermissionValue, buildExistsFromPath, ColumnPath } from '@speajus/rlsify-types';
   import { schema, foreignKeys } from './stores/schema-store.js';
   import ConditionRow from './ConditionRow.svelte';
+  import { hasKey, keysOf } from './utils.js';
 
   interface Props {
     baseTable: string;
@@ -255,8 +256,13 @@
   }
 
   function parseFieldExpression(expr: any): Condition | null {
-    // Skip _exists and other complex operators for now
-    if ('_exists' in expr || '_not' in expr) {
+    // Handle _exists expressions (FK navigation)
+    if (hasKey(expr, '_exists')) {
+      return parseExistsExpression(expr);
+    }
+
+    // Skip _not for now (could be extended later)
+    if (hasKey(expr, '_not')) {
       return null;
     }
 
@@ -268,12 +274,112 @@
     if (!fieldValue || typeof fieldValue !== 'object') return null;
 
     // Find the operator
-    const operator = Object.keys(fieldValue).find(k => k.startsWith('_'));
+    const operator = keysOf(fieldValue).find(k => String(k).startsWith('_'));
     if (!operator) return null;
 
     const value = fieldValue[operator];
 
     // Determine value type and extract actual value
+    let valueType: 'literal' | 'session' | 'column' = 'literal';
+    let actualValue = value;
+
+    if (value && typeof value === 'object') {
+      if ('var' in value) {
+        valueType = 'session';
+        actualValue = value.var;
+      } else if ('column' in value) {
+        valueType = 'column';
+        actualValue = value.column;
+      }
+    }
+
+    const tableName = baseTable.split('.').pop() || baseTable;
+
+    return {
+      id: crypto.randomUUID(),
+      field: fieldName,
+      tablePath: [tableName],
+      operator: String(operator),
+      value: actualValue,
+      valueType
+    };
+  }
+
+  /**
+   * Parse _exists expressions back into conditions with FK path
+   */
+  function parseExistsExpression(expr: any): Condition | null {
+    const existsClause = expr._exists;
+    if (!existsClause || !existsClause._table || !existsClause._where) {
+      return null;
+    }
+
+    const fkPath: FKNavigationStep[] = [];
+    let currentWhere = existsClause._where;
+    let targetTable = existsClause._table;
+
+    // Walk through nested _and to extract FK navigation steps and final condition
+    // Structure: { _and: [linkCondition, innerExpr] }
+    while (currentWhere && '_and' in currentWhere && Array.isArray(currentWhere._and)) {
+      const andItems = currentWhere._and;
+
+      // Find the link condition (has a column reference like { column: "table.field" })
+      let linkCondition: any = null;
+      let innerExpr: any = null;
+
+      for (const item of andItems) {
+        const fieldName = Object.keys(item).find(k => !k.startsWith('_'));
+        if (fieldName && item[fieldName]?._eq?.column) {
+          linkCondition = item;
+        } else if ('_exists' in item) {
+          innerExpr = item;
+        } else {
+          // This is the final condition
+          innerExpr = item;
+        }
+      }
+
+      if (linkCondition) {
+        const linkFieldName = Object.keys(linkCondition).find(k => !k.startsWith('_'));
+        if (linkFieldName) {
+          const columnRef = linkCondition[linkFieldName]._eq.column as string;
+          const [fromTable, fromColumn] = columnRef.split('.');
+
+          fkPath.push({
+            fromTable,
+            fromColumn,
+            toTable: targetTable,
+            toColumn: linkFieldName
+          });
+        }
+      }
+
+      if (innerExpr && '_exists' in innerExpr) {
+        // Continue walking nested _exists
+        targetTable = innerExpr._exists._table;
+        currentWhere = innerExpr._exists._where;
+      } else if (innerExpr) {
+        // Found the final condition
+        currentWhere = innerExpr;
+        break;
+      } else {
+        break;
+      }
+    }
+
+    // Parse the final condition (the actual field comparison)
+    const fieldName = Object.keys(currentWhere).find(k => !k.startsWith('_'));
+    if (!fieldName) return null;
+
+    const fieldValue = currentWhere[fieldName];
+    if (!fieldValue || typeof fieldValue !== 'object') return null;
+
+    const operator = Object.keys(fieldValue).find(k => k.startsWith('_'));
+    if (!operator) return null;
+
+    const value = fieldValue[operator];
+
+    // Determine value type
     let valueType: 'literal' | 'session' | 'column' = 'literal';
     let actualValue: any = value;
 
@@ -292,7 +398,8 @@
     return {
       id: crypto.randomUUID(),
       field: fieldName,
-      tablePath: [tableName],
+      tablePath: [tableName, targetTable],
+      fkPath,
       operator,
       value: actualValue,
       valueType

@@ -11,7 +11,6 @@
  * @speajus/diblob-connect for gRPC server integration.
  */
 
-import type { Pool } from 'pg';
 import {
   registerGrpcBlobs,
   grpcServer,
@@ -31,6 +30,11 @@ import {
 import { SchemaServiceImpl } from './services/schema-service.js';
 import { PolicyServiceImpl } from './services/policy-service.js';
 import { HealthServiceImpl } from './services/health-service.js';
+
+// Export service implementations for desktop app and other consumers
+export { SchemaServiceImpl } from './services/schema-service.js';
+export { PolicyServiceImpl } from './services/policy-service.js';
+export { HealthServiceImpl } from './services/health-service.js';
 
 // Create container with configuration loaded via @speajus/diblob-config
 const { container, config } = createServiceContainer();

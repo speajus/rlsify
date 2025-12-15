@@ -36,7 +36,7 @@
   "author": "Justin Spears <speajus@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "@speajus/diblob": "^1.0.0",
+    "@speajus/diblob": "^1.0.2",
     "@speajus/rlsify-types": "workspace:*"
   },
   "devDependencies": {

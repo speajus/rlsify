@@ -1,3 +1,7 @@
+
+export * from './gen/rlsify/v1/schema_pb.js';
+export * from './gen/rlsify/v1/policy_pb.js';
+export * from './gen/rlsify/v1/health_pb.js';
 /**
  * Core types for rlsify - PostgreSQL Row-Level Security policy generation
  */
