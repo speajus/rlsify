@@ -52,7 +52,15 @@ export function createDesktopContainer(dbConfig: DatabaseConfig): {
   const container = createDiblobContainer();
 
   // Register database pool with the provided configuration
-  container.register(databasePoolBlob, Pool, dbConfig);
+  // Construct the Pool config explicitly to ensure proper types
+  container.register(databasePoolBlob, Pool, {
+    host: dbConfig.host,
+    port: dbConfig.port,
+    database: dbConfig.database,
+    user: dbConfig.user,
+    password: dbConfig.password,
+    ssl: dbConfig.ssl ? { rejectUnauthorized: false } : undefined,
+  });
 
   // Create core service dependencies directly (avoid diblob version mismatch)
   const joinResolver = new JoinResolver();

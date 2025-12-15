@@ -13,11 +13,45 @@ import { fileURLToPath } from 'node:url';
 import { toBinary } from '@bufbuild/protobuf';
 import type { DescMessage, DescMethodUnary, DescMethodStreaming, DescService } from '@bufbuild/protobuf';
 import { registerLoggerBlobs } from '@speajus/diblob-logger';
+import Store from 'electron-store';
 import {
   SchemaServiceProto,
   PolicyServiceProto,
   HealthServiceProto,
 } from '@speajus/rlsify-types';
+
+// Types for saved database connections
+interface SavedConnection {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  ssl: boolean;
+  createdAt: number;
+  lastUsedAt?: number;
+}
+
+// Settings store for persisting database connection info
+interface StoreSchema {
+  connections: SavedConnection[];
+  lastConnectionId?: string;
+}
+
+const store = new Store<StoreSchema>({
+  name: 'rlsify-settings',
+  encryptionKey: 'rlsify-desktop-v1', // Simple encryption for password
+  defaults: {
+    connections: [],
+  },
+});
+
+// Helper to generate unique IDs
+function generateId(): string {
+  return `conn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
 
 // ============================================================================
 // Simple Local Service Registry (avoiding diblob-connect blob issues)
@@ -239,6 +273,7 @@ ipcMain.handle('database:connect', async (_event, config: DatabaseConfig) => {
     // Dispose existing container if any
     if (container) {
       await container.dispose();
+      localServiceRegistry.clear();
     }
 
     // Create new container with the provided config
@@ -253,8 +288,39 @@ ipcMain.handle('database:connect', async (_event, config: DatabaseConfig) => {
     // Initialize services
     await initializeServices();
 
+    // Verify the connection actually works by running a simple query
+    const dbPool = await container.resolve(databasePoolBlob);
+    const client = await dbPool.connect();
+    try {
+      await client.query('SELECT 1');
+    } finally {
+      client.release();
+    }
+
+    // Save successful connection settings
+    store.set('lastConnection', {
+      host: config.host,
+      port: config.port,
+      database: config.database,
+      user: config.user,
+      password: config.password,
+      ssl: config.ssl ?? false,
+    });
+
     return { success: true };
   } catch (error) {
+    // Connection failed, clean up
+    if (container) {
+      try {
+        await container.dispose();
+      } catch {
+        // Ignore disposal errors
+      }
+      container = null;
+      currentDbConfig = null;
+      policyValidator = null;
+      localServiceRegistry.clear();
+    }
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -271,6 +337,7 @@ ipcMain.handle('database:disconnect', async () => {
     container = null;
     currentDbConfig = null;
   }
+  localServiceRegistry.clear();
 });
 
 /**
@@ -282,9 +349,101 @@ ipcMain.handle('database:status', () => {
       connected: true,
       database: currentDbConfig.database,
       host: currentDbConfig.host,
+      port: currentDbConfig.port,
+      user: currentDbConfig.user,
     };
   }
   return { connected: false };
+});
+
+/**
+ * Get all saved connections
+ */
+ipcMain.handle('database:listConnections', () => {
+  return store.get('connections') ?? [];
+});
+
+/**
+ * Save a new connection or update existing one
+ */
+ipcMain.handle('database:saveConnection', (_event, connection: Omit<SavedConnection, 'id' | 'createdAt'> & { id?: string }) => {
+  const connections = store.get('connections') ?? [];
+
+  if (connection.id) {
+    // Update existing connection
+    const index = connections.findIndex(c => c.id === connection.id);
+    if (index !== -1) {
+      connections[index] = {
+        ...connections[index],
+        ...connection,
+        id: connection.id,
+      };
+      store.set('connections', connections);
+      return connections[index];
+    }
+  }
+
+  // Create new connection
+  const newConnection: SavedConnection = {
+    id: generateId(),
+    name: connection.name,
+    host: connection.host,
+    port: connection.port,
+    database: connection.database,
+    user: connection.user,
+    password: connection.password,
+    ssl: connection.ssl,
+    createdAt: Date.now(),
+  };
+
+  connections.push(newConnection);
+  store.set('connections', connections);
+  return newConnection;
+});
+
+/**
+ * Delete a saved connection
+ */
+ipcMain.handle('database:deleteConnection', (_event, connectionId: string) => {
+  const connections = store.get('connections') ?? [];
+  const filtered = connections.filter(c => c.id !== connectionId);
+  store.set('connections', filtered);
+
+  // Clear lastConnectionId if it was the deleted one
+  if (store.get('lastConnectionId') === connectionId) {
+    store.delete('lastConnectionId');
+  }
+});
+
+/**
+ * Get the last used connection ID
+ */
+ipcMain.handle('database:getLastConnectionId', () => {
+  return store.get('lastConnectionId') ?? null;
+});
+
+/**
+ * Set the last used connection ID
+ */
+ipcMain.handle('database:setLastConnectionId', (_event, connectionId: string) => {
+  store.set('lastConnectionId', connectionId);
+});
+
+/**
+ * Open a new window (optionally with a specific connection)
+ */
+ipcMain.handle('database:openNewWindow', (_event, connectionId?: string) => {
+  const newWindow = createWindow();
+
+  // If a connection ID was provided, we'll pass it to the new window
+  // The renderer will handle connecting after load
+  if (connectionId) {
+    newWindow.webContents.once('did-finish-load', () => {
+      newWindow.webContents.send('connect-to-database', connectionId);
+    });
+  }
+
+  return { success: true };
 });
 
 // ============================================================================

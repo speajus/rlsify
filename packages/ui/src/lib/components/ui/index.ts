@@ -9,4 +9,5 @@ export * from './switch/index.js';
 export * from './tabs/index.js';
 export * from './collapsible/index.js';
 export * from './alert/index.js';
+export * from './dropdown-menu/index.js';
 
