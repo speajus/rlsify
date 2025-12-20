@@ -189,31 +189,12 @@
     <!-- Main Content Area -->
     <main class="flex-1 overflow-y-auto">
       <div class="p-6 flex flex-col gap-6">
-        <!-- Toolbar -->
-        <Card class="border-border">
-          <CardContent class="p-3">
-            <div class="flex flex-wrap items-center gap-3">
-              <Button variant="outline" onclick={() => showImportPolicies = !showImportPolicies}>
-                <Database class="mr-2 h-4 w-4" />
-                Import from DB
-                <ChevronDown class="ml-2 h-4 w-4 transition-transform {showImportPolicies ? 'rotate-180' : ''}" />
-              </Button>
-
-              <div class="flex-1"></div>
-
-              {#if $policyError}
-                <Alert variant="destructive" class="py-2 px-3">
-                  <AlertCircle class="h-4 w-4" />
-                  <AlertDescription>{$policyError}</AlertDescription>
-                </Alert>
-              {/if}
-            </div>
-          </CardContent>
-        </Card>
-
-        <!-- Import Existing Policies Collapsible -->
-        {#if showImportPolicies}
-          <ExistingPoliciesImporter />
+        <!-- Error Alert -->
+        {#if $policyError}
+          <Alert variant="destructive" class="py-2 px-3">
+            <AlertCircle class="h-4 w-4" />
+            <AlertDescription>{$policyError}</AlertDescription>
+          </Alert>
         {/if}
 
         <!-- Policy Editor -->
@@ -228,6 +209,21 @@
 
         {#if showPreview}
           <SQLPreview config={$policyConfig} />
+        {/if}
+
+        <!-- Import from DB - moved to bottom -->
+        <Card class="border-border">
+          <CardContent class="p-3">
+            <Button variant="outline" onclick={() => showImportPolicies = !showImportPolicies}>
+              <Database class="mr-2 h-4 w-4" />
+              Import from DB
+              <ChevronDown class="ml-2 h-4 w-4 transition-transform {showImportPolicies ? 'rotate-180' : ''}" />
+            </Button>
+          </CardContent>
+        </Card>
+
+        {#if showImportPolicies}
+          <ExistingPoliciesImporter />
         {/if}
       </div>
     </main>

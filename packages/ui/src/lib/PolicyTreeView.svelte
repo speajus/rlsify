@@ -34,6 +34,9 @@
 
   // Track expanded tables
   let expandedTables = $state<Set<string>>(new Set());
+  // Track expanded sub-branches (columns, policies) per table
+  let expandedColumns = $state<Set<string>>(new Set());
+  let expandedPolicies = $state<Set<string>>(new Set());
 
   // Group policies by table name
   let policiesByTable = $derived.by(() => {
@@ -63,6 +66,24 @@
     expandedTables = new Set(expandedTables);
   }
 
+  function toggleColumns(tableName: string) {
+    if (expandedColumns.has(tableName)) {
+      expandedColumns.delete(tableName);
+    } else {
+      expandedColumns.add(tableName);
+    }
+    expandedColumns = new Set(expandedColumns);
+  }
+
+  function togglePolicies(tableName: string) {
+    if (expandedPolicies.has(tableName)) {
+      expandedPolicies.delete(tableName);
+    } else {
+      expandedPolicies.add(tableName);
+    }
+    expandedPolicies = new Set(expandedPolicies);
+  }
+
   function handleSelectTable(tableName: string) {
     onSelectTable(tableName);
   }
@@ -75,6 +96,42 @@
     e.stopPropagation();
     if (confirm('Are you sure you want to delete this policy?')) {
       onDeletePolicy(id);
+    }
+  }
+
+  /**
+   * Count total policy definitions across all saved policies for a table
+   */
+  function countPolicyDefs(savedPolicies: SavedPolicy[]): number {
+    return savedPolicies.reduce((count, sp) => count + (sp.config?.policies?.length || 0), 0);
+  }
+
+  /**
+   * Find the FK target table for a given column in a table
+   */
+  function getFKTarget(table: TableInfo, columnName: string): string | null {
+    const fk = table.foreignKeys.find(fk => fk.sourceColumn === columnName);
+    if (fk) {
+      // Return full table name with schema if available
+      return table.schema ? `${table.schema}.${fk.targetTable}` : fk.targetTable;
+    }
+    return null;
+  }
+
+  /**
+   * Navigate to a FK target table - expand it and its columns
+   */
+  function navigateToFKTable(e: Event, targetTableName: string) {
+    e.stopPropagation();
+    // Expand the target table
+    if (!expandedTables.has(targetTableName)) {
+      expandedTables.add(targetTableName);
+      expandedTables = new Set(expandedTables);
+    }
+    // Expand its columns branch
+    if (!expandedColumns.has(targetTableName)) {
+      expandedColumns.add(targetTableName);
+      expandedColumns = new Set(expandedColumns);
     }
   }
 
@@ -133,6 +190,7 @@
         {@const fullName = getFullTableName(table)}
         {@const isSelected = selectedTable === fullName}
         {@const tablePolicies = policiesByTable.get(fullName) || []}
+        {@const policyCount = countPolicyDefs(tablePolicies)}
         <div class="tree-group">
           <!-- Table header -->
           <div class="w-full flex items-center gap-1.5 px-2 py-1.5 transition-colors cursor-pointer
@@ -159,59 +217,150 @@
             >
               <Table class="h-3.5 w-3.5 text-primary shrink-0" />
               <span class="font-medium text-xs truncate flex-1 {isSelected ? 'text-primary' : ''}">{table.name}</span>
-              <span class="text-[10px] text-muted-foreground">{table.columns.length}</span>
+              {#if policyCount === 0}
+                <span class="text-[10px] text-orange-500 italic">no policy</span>
+              {:else}
+                <span class="text-[10px] text-muted-foreground">{policyCount} {policyCount === 1 ? 'policy' : 'policies'}</span>
+              {/if}
             </span>
           </div>
 
-          <!-- Columns under this table -->
+          <!-- Sub-branches under this table -->
           {#if expandedTables.has(fullName)}
-            <div class="pl-5 border-l border-border ml-3">
-              {#each table.columns as column}
-                <div class="flex items-center gap-1.5 px-2 py-0.5 text-xs">
-                  {#if column.isPrimaryKey}
-                    <Key class="h-3 w-3 text-yellow-500 shrink-0" />
-                  {:else if column.isForeignKey}
-                    <Link class="h-3 w-3 text-blue-400 shrink-0" />
-                  {:else}
-                    <Columns3 class="h-3 w-3 text-muted-foreground shrink-0" />
-                  {/if}
-                  <span class="truncate flex-1 text-foreground">{column.name}</span>
-                  <span class="text-muted-foreground text-[10px] shrink-0">{column.type}</span>
+            <div class="pl-5 border-l border-border ml-4">
+              <!-- Columns branch -->
+              <div class="tree-branch">
+                <div
+                  class="flex items-center gap-1.5 px-2 py-1 hover:bg-muted/50 transition-colors cursor-pointer"
+                  role="button"
+                  tabindex="0"
+                  onclick={() => toggleColumns(fullName)}
+                  onkeydown={(e) => e.key === 'Enter' && toggleColumns(fullName)}
+                >
+                  <span class="p-0.5">
+                    {#if expandedColumns.has(fullName)}
+                      <ChevronDown class="h-3 w-3 text-muted-foreground" />
+                    {:else}
+                      <ChevronRight class="h-3 w-3 text-muted-foreground" />
+                    {/if}
+                  </span>
+                  <Columns3 class="h-3 w-3 text-amber-500 shrink-0" />
+                  <span class="text-xs text-foreground">Columns</span>
+                  <span class="text-[10px] text-muted-foreground ml-auto">{table.columns.length}</span>
                 </div>
-              {/each}
+                {#if expandedColumns.has(fullName)}
+                  <div class="pl-5 border-l border-border ml-4">
+                    {#each table.columns as column}
+                      {@const fkTarget = column.isForeignKey ? getFKTarget(table, column.name) : null}
+                      <div class="flex items-center gap-1.5 px-2 py-0.5 text-xs {fkTarget ? 'hover:bg-muted/50 cursor-pointer' : ''}"
+                        role={fkTarget ? 'button' : undefined}
+                        tabindex={fkTarget ? 0 : undefined}
+                        onclick={(e) => fkTarget && navigateToFKTable(e, fkTarget)}
+                        onkeydown={(e) => fkTarget && e.key === 'Enter' && navigateToFKTable(e, fkTarget)}
+                      >
+                        {#if column.isPrimaryKey}
+                          <Key class="h-3 w-3 text-yellow-500 shrink-0" />
+                        {:else if column.isForeignKey}
+                          <Link class="h-3 w-3 text-blue-400 shrink-0" />
+                        {:else}
+                          <Columns3 class="h-3 w-3 text-muted-foreground shrink-0" />
+                        {/if}
+                        <span class="truncate flex-1 text-foreground">{column.name}</span>
+                        {#if fkTarget}
+                          <span class="text-blue-400 text-[10px] shrink-0">→ {fkTarget.split('.').pop()}</span>
+                        {:else}
+                          <span class="text-muted-foreground text-[10px] shrink-0">{column.type}</span>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
 
-              <!-- Saved policies for this table -->
-              {#if tablePolicies.length > 0}
-                <div class="mt-1 pt-1 border-t border-border">
-                  <div class="px-2 py-0.5 text-[10px] text-muted-foreground uppercase tracking-wider">Policies</div>
-                  {#each tablePolicies as policy}
-                    {@const isPolicySelected = policy.id === currentPolicyId}
-                    <div class="flex items-center gap-1.5 px-2 py-0.5 group cursor-pointer transition-colors
-                        {isPolicySelected ? 'bg-primary/10 text-primary' : 'hover:bg-muted/50'}">
-                      <span
-                        class="flex items-center gap-1.5 flex-1 cursor-pointer"
-                        role="button"
-                        tabindex="0"
-                        onclick={() => handleSelectPolicy(policy.id)}
-                        onkeydown={(e) => e.key === 'Enter' && handleSelectPolicy(policy.id)}
-                      >
-                        <FileText class="h-3 w-3 shrink-0 {isPolicySelected ? 'text-primary' : 'text-muted-foreground'}" />
-                        <span class="text-xs truncate flex-1">{policy.description || 'Untitled'}</span>
-                      </span>
-                      <span
-                        class="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-destructive/20 rounded transition-all cursor-pointer"
-                        role="button"
-                        tabindex="0"
-                        onclick={(e) => handleDeletePolicy(e, policy.id)}
-                        onkeydown={(e) => e.key === 'Enter' && handleDeletePolicy(e, policy.id)}
-                        title="Delete policy"
-                      >
-                        <Trash2 class="h-2.5 w-2.5 text-destructive" />
-                      </span>
-                    </div>
-                  {/each}
+              <!-- Policies branch -->
+              <div class="tree-branch">
+                <div
+                  class="flex items-center gap-1.5 px-2 py-1 hover:bg-muted/50 transition-colors cursor-pointer"
+                  role="button"
+                  tabindex="0"
+                  onclick={() => togglePolicies(fullName)}
+                  onkeydown={(e) => e.key === 'Enter' && togglePolicies(fullName)}
+                >
+                  <span class="p-0.5">
+                    {#if expandedPolicies.has(fullName)}
+                      <ChevronDown class="h-3 w-3 text-muted-foreground" />
+                    {:else}
+                      <ChevronRight class="h-3 w-3 text-muted-foreground" />
+                    {/if}
+                  </span>
+                  <FileText class="h-3 w-3 text-green-500 shrink-0" />
+                  <span class="text-xs text-foreground">Policies</span>
+                  <span class="text-[10px] text-muted-foreground ml-auto">{policyCount === 0 ? 'no policy' : policyCount}</span>
                 </div>
-              {/if}
+                {#if expandedPolicies.has(fullName)}
+                  <div class="pl-5 border-l border-border ml-4">
+                    {#if policyCount === 0}
+                      <div class="px-2 py-1 text-xs text-muted-foreground italic">No policies</div>
+                    {:else}
+                      {#each tablePolicies as savedPolicy}
+                        {@const isPolicySelected = savedPolicy.id === currentPolicyId}
+                        {@const policyDefs = savedPolicy.config?.policies || []}
+                        {#if policyDefs.length === 0}
+                          <div class="flex items-center gap-1.5 px-2 py-0.5 group cursor-pointer transition-colors
+                              {isPolicySelected ? 'bg-primary/10 text-primary' : 'hover:bg-muted/50'}">
+                            <span
+                              class="flex items-center gap-1.5 flex-1 cursor-pointer"
+                              role="button"
+                              tabindex="0"
+                              onclick={() => handleSelectPolicy(savedPolicy.id)}
+                              onkeydown={(e) => e.key === 'Enter' && handleSelectPolicy(savedPolicy.id)}
+                            >
+                              <FileText class="h-3 w-3 shrink-0 {isPolicySelected ? 'text-primary' : 'text-muted-foreground'}" />
+                              <span class="text-xs truncate flex-1">{savedPolicy.description || 'Untitled'}</span>
+                            </span>
+                            <span
+                              class="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-destructive/20 rounded transition-all cursor-pointer"
+                              role="button"
+                              tabindex="0"
+                              onclick={(e) => handleDeletePolicy(e, savedPolicy.id)}
+                              onkeydown={(e) => e.key === 'Enter' && handleDeletePolicy(e, savedPolicy.id)}
+                              title="Delete policy"
+                            >
+                              <Trash2 class="h-2.5 w-2.5 text-destructive" />
+                            </span>
+                          </div>
+                        {:else}
+                          {#each policyDefs as policyDef}
+                            <div class="flex items-center gap-1.5 px-2 py-0.5 group cursor-pointer transition-colors
+                                {isPolicySelected ? 'bg-primary/10 text-primary' : 'hover:bg-muted/50'}">
+                              <span
+                                class="flex items-center gap-1.5 flex-1 cursor-pointer"
+                                role="button"
+                                tabindex="0"
+                                onclick={() => handleSelectPolicy(savedPolicy.id)}
+                                onkeydown={(e) => e.key === 'Enter' && handleSelectPolicy(savedPolicy.id)}
+                              >
+                                <FileText class="h-3 w-3 shrink-0 {isPolicySelected ? 'text-primary' : 'text-muted-foreground'}" />
+                                <span class="text-xs truncate flex-1">{policyDef.name || 'Untitled'}</span>
+                              </span>
+                              <span
+                                class="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-destructive/20 rounded transition-all cursor-pointer"
+                                role="button"
+                                tabindex="0"
+                                onclick={(e) => handleDeletePolicy(e, savedPolicy.id)}
+                                onkeydown={(e) => e.key === 'Enter' && handleDeletePolicy(e, savedPolicy.id)}
+                                title="Delete policy"
+                              >
+                                <Trash2 class="h-2.5 w-2.5 text-destructive" />
+                              </span>
+                            </div>
+                          {/each}
+                        {/if}
+                      {/each}
+                    {/if}
+                  </div>
+                {/if}
+              </div>
             </div>
           {/if}
         </div>
