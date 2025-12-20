@@ -2,6 +2,8 @@
   import PolicyEditor from './lib/PolicyEditor.svelte';
   import SQLPreview from './lib/SQLPreview.svelte';
   import ExistingPoliciesImporter from './lib/ExistingPoliciesImporter.svelte';
+  import PolicyTreeView from './lib/PolicyTreeView.svelte';
+  import ConnectionDialog from './lib/ConnectionDialog.svelte';
   import {
     policyConfig,
     fetchPolicies,
@@ -10,167 +12,236 @@
     savedPolicies,
     policyError,
     resetConfig,
+    currentPolicyId,
   } from './lib/stores/policy-store.js';
-  import { loadSchema, schema, loading as schemaLoading, error as schemaError } from './lib/stores/schema-store.js';
+  import { loadSchema, tables, loading as schemaLoading, error as schemaError, currentSchema, availableSchemas } from './lib/stores/schema-store.js';
+  import { connected, currentConnection, checkConnectionStatus, connectionError } from './lib/stores/connection-store.js';
+  import { updateTable } from './lib/stores/policy-store.js';
   import { onMount } from 'svelte';
   import { Button } from '$lib/components/ui/button/index.js';
-  import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
+  import { Card, CardContent } from '$lib/components/ui/card/index.js';
   import { Alert, AlertDescription } from '$lib/components/ui/alert/index.js';
-  import { Badge } from '$lib/components/ui/badge/index.js';
-  import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '$lib/components/ui/collapsible/index.js';
   import ChevronDown from 'lucide-svelte/icons/chevron-down';
   import Loader2 from 'lucide-svelte/icons/loader-2';
-  import CheckCircle from 'lucide-svelte/icons/check-circle';
   import AlertCircle from 'lucide-svelte/icons/alert-circle';
-  import Trash2 from 'lucide-svelte/icons/trash-2';
-  import Upload from 'lucide-svelte/icons/upload';
   import Database from 'lucide-svelte/icons/database';
+  import Plus from 'lucide-svelte/icons/plus';
+  import PanelLeftClose from 'lucide-svelte/icons/panel-left-close';
+  import PanelLeft from 'lucide-svelte/icons/panel-left';
 
   let showPreview = $state(false);
-  let showSavedPolicies = $state(false);
   let showImportPolicies = $state(false);
+  let sidebarCollapsed = $state(false);
+  let showConnectionDialog = $state(false);
 
-  // Load schema and saved policies from backend on mount
+  let initialLoadError = $state<string | null>(null);
+
+  // Check connection status and load data on mount
   onMount(async () => {
     try {
-      await Promise.all([
-        loadSchema('public'),
-        fetchPolicies(),
-      ]);
+      // First check if we're already connected
+      await checkConnectionStatus();
+
+      // If connected, load schema and policies
+      if ($connected) {
+        await Promise.all([
+          loadSchema('public'),
+          fetchPolicies(),
+        ]);
+      } else {
+        // Not connected - show connection dialog with any error from the status check
+        if ($connectionError) {
+          initialLoadError = $connectionError;
+        }
+        showConnectionDialog = true;
+      }
     } catch (e) {
       console.error('Failed to load data:', e);
+      // Capture the error for display
+      if (e instanceof Error) {
+        // Provide user-friendly error messages for common issues
+        if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+          initialLoadError = 'Cannot connect to the RLSify service. Make sure the backend is running on port 50051.';
+        } else if (e.message.includes('ECONNREFUSED')) {
+          initialLoadError = 'Connection refused. The RLSify service is not running.';
+        } else {
+          initialLoadError = e.message;
+        }
+      } else {
+        initialLoadError = 'Failed to connect to the RLSify service.';
+      }
+      // If check fails, show connection dialog
+      showConnectionDialog = true;
     }
   });
 
   async function handleLoadPolicy(id: string) {
     await fetchPolicy(id);
-    showSavedPolicies = false;
   }
 
   async function handleDeletePolicy(id: string) {
-    if (confirm('Are you sure you want to delete this policy?')) {
-      await deletePolicy(id);
-    }
+    await deletePolicy(id);
   }
 
   function handleNewPolicy() {
     resetConfig();
   }
+
+  function handleSelectTable(tableName: string) {
+    updateTable(tableName);
+  }
+
+  async function handleChangeSchema(schemaName: string) {
+    await loadSchema(schemaName);
+  }
+
+  function handleOpenConnectionDialog() {
+    showConnectionDialog = true;
+  }
+
+  async function handleConnected() {
+    // Clear any initial error
+    initialLoadError = null;
+    // Reload schema and policies after connecting
+    await Promise.all([
+      loadSchema($currentSchema),
+      fetchPolicies(),
+    ]);
+  }
 </script>
 
-<main class="min-h-screen">
-  <header class="text-center mb-12 py-8 border-b border-border">
-    <h1 class="text-5xl font-bold mb-2 bg-gradient-to-r from-primary to-blue-400 bg-clip-text text-transparent">
+<div class="min-h-screen flex flex-col">
+  <!-- Header -->
+  <header class="text-center py-4 border-b border-border shrink-0">
+    <h1 class="text-3xl font-bold mb-1 bg-gradient-to-r from-primary to-blue-400 bg-clip-text text-transparent">
       🔒 RLSify
     </h1>
-    <p class="text-muted-foreground text-lg">PostgreSQL Row-Level Security Policy Builder</p>
+    <p class="text-muted-foreground text-sm">PostgreSQL Row-Level Security Policy Builder</p>
   </header>
 
-  <div class="flex flex-col gap-8">
-    <!-- Toolbar -->
-    <Card class="border-border">
-      <CardContent class="p-4">
-        <div class="flex flex-wrap items-center gap-3">
-          <Button onclick={handleNewPolicy}>New Policy</Button>
-          <Button variant="secondary" onclick={() => showSavedPolicies = !showSavedPolicies}>
-            <ChevronDown class="mr-2 h-4 w-4 transition-transform {showSavedPolicies ? 'rotate-180' : ''}" />
-            Saved Policies
-            <Badge variant="secondary" class="ml-2">{$savedPolicies.length}</Badge>
-          </Button>
-          <Button variant="outline" onclick={() => showImportPolicies = !showImportPolicies}>
-            <Database class="mr-2 h-4 w-4" />
-            Import from DB
-          </Button>
+  <!-- Main Layout: Sidebar + Content -->
+  <div class="flex flex-1 overflow-hidden">
+    <!-- Left Sidebar: Policy Tree -->
+    <aside class="border-r border-border bg-card shrink-0 flex flex-col transition-all duration-200
+      {sidebarCollapsed ? 'w-12' : 'w-64'}">
+      <!-- Sidebar Header -->
+      <div class="p-2 border-b border-border flex items-center justify-between">
+        {#if !sidebarCollapsed}
+          <span class="text-sm font-medium text-muted-foreground">Saved Policies</span>
+        {/if}
+        <button
+          type="button"
+          class="p-1.5 hover:bg-muted rounded transition-colors"
+          onclick={() => sidebarCollapsed = !sidebarCollapsed}
+          title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {#if sidebarCollapsed}
+            <PanelLeft class="h-4 w-4 text-muted-foreground" />
+          {:else}
+            <PanelLeftClose class="h-4 w-4 text-muted-foreground" />
+          {/if}
+        </button>
+      </div>
 
-          <div class="flex-1"></div>
+      {#if !sidebarCollapsed}
+        <!-- New Policy Button -->
+        <div class="p-2 border-b border-border">
+          <Button class="w-full" size="sm" onclick={handleNewPolicy}>
+            <Plus class="mr-2 h-4 w-4" />
+            New Policy
+          </Button>
+        </div>
 
+        <!-- Schema Tree -->
+        <div class="flex-1 overflow-y-auto">
           {#if $schemaLoading}
-            <div class="flex items-center gap-2 text-muted-foreground text-sm">
+            <div class="p-4 flex items-center gap-2 text-muted-foreground text-sm">
               <Loader2 class="h-4 w-4 animate-spin" />
-              Loading schema...
+              Loading...
             </div>
           {:else if $schemaError}
-            <Alert variant="destructive" class="py-2 px-3">
-              <AlertCircle class="h-4 w-4" />
-              <AlertDescription>{$schemaError}</AlertDescription>
-            </Alert>
-          {:else if $schema}
-            <div class="flex items-center gap-2 text-green-400 text-sm">
-              <CheckCircle class="h-4 w-4" />
-              {$schema.tables.length} tables loaded
+            <div class="p-4 text-destructive text-sm">
+              <AlertCircle class="h-4 w-4 inline mr-1" />
+              {$schemaError}
             </div>
-          {/if}
-
-          {#if $policyError}
-            <Alert variant="destructive" class="py-2 px-3">
-              <AlertCircle class="h-4 w-4" />
-              <AlertDescription>{$policyError}</AlertDescription>
-            </Alert>
+          {:else}
+            <PolicyTreeView
+              tables={$tables}
+              policies={$savedPolicies}
+              currentPolicyId={$currentPolicyId}
+              selectedTable={$policyConfig.table || null}
+              currentSchema={$currentSchema}
+              availableSchemas={$availableSchemas}
+              schemaLoading={$schemaLoading}
+              connected={$connected}
+              currentDatabase={$currentConnection?.database ?? null}
+              onSelectTable={handleSelectTable}
+              onSelectPolicy={handleLoadPolicy}
+              onDeletePolicy={handleDeletePolicy}
+              onChangeSchema={handleChangeSchema}
+              onOpenConnectionDialog={handleOpenConnectionDialog}
+            />
           {/if}
         </div>
-      </CardContent>
-    </Card>
+      {/if}
+    </aside>
 
-    <!-- Saved Policies Collapsible -->
-    <Collapsible bind:open={showSavedPolicies}>
-      <CollapsibleContent>
-        {#if $savedPolicies.length > 0}
-          <Card class="border-border">
-            <CardHeader class="pb-4">
-              <CardTitle class="text-lg">Saved Policies</CardTitle>
-            </CardHeader>
-            <CardContent class="pt-0">
-              <div class="flex flex-col gap-2">
-                {#each $savedPolicies as policy}
-                  <div class="flex justify-between items-center p-3 rounded-md bg-muted/50 border border-border hover:border-primary/50 transition-colors">
-                    <div class="flex items-center gap-4">
-                      <span class="font-medium">{policy.config?.table ?? 'Unknown'}</span>
-                      {#if policy.description}
-                        <span class="text-muted-foreground text-sm">{policy.description}</span>
-                      {/if}
-                      <span class="text-muted-foreground text-xs">{new Date(policy.updatedAt).toLocaleDateString()}</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <Button size="sm" variant="secondary" onclick={() => handleLoadPolicy(policy.id)}>
-                        <Upload class="mr-1 h-3 w-3" />
-                        Load
-                      </Button>
-                      <Button size="sm" variant="destructive" onclick={() => handleDeletePolicy(policy.id)}>
-                        <Trash2 class="mr-1 h-3 w-3" />
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            </CardContent>
-          </Card>
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-y-auto">
+      <div class="p-6 flex flex-col gap-6">
+        <!-- Toolbar -->
+        <Card class="border-border">
+          <CardContent class="p-3">
+            <div class="flex flex-wrap items-center gap-3">
+              <Button variant="outline" onclick={() => showImportPolicies = !showImportPolicies}>
+                <Database class="mr-2 h-4 w-4" />
+                Import from DB
+                <ChevronDown class="ml-2 h-4 w-4 transition-transform {showImportPolicies ? 'rotate-180' : ''}" />
+              </Button>
+
+              <div class="flex-1"></div>
+
+              {#if $policyError}
+                <Alert variant="destructive" class="py-2 px-3">
+                  <AlertCircle class="h-4 w-4" />
+                  <AlertDescription>{$policyError}</AlertDescription>
+                </Alert>
+              {/if}
+            </div>
+          </CardContent>
+        </Card>
+
+        <!-- Import Existing Policies Collapsible -->
+        {#if showImportPolicies}
+          <ExistingPoliciesImporter />
         {/if}
-      </CollapsibleContent>
-    </Collapsible>
 
-    <!-- Import Existing Policies Collapsible -->
-    <Collapsible bind:open={showImportPolicies}>
-      <CollapsibleContent>
-        <ExistingPoliciesImporter />
-      </CollapsibleContent>
-    </Collapsible>
+        <!-- Policy Editor -->
+        <PolicyEditor />
 
-    <!-- Policy Editor -->
-    <PolicyEditor />
+        <!-- Preview Toggle -->
+        <div class="flex justify-center">
+          <Button variant="outline" onclick={() => showPreview = !showPreview}>
+            {showPreview ? 'Hide' : 'Show'} SQL Preview
+          </Button>
+        </div>
 
-    <!-- Preview Toggle -->
-    <div class="flex justify-center">
-      <Button variant="outline" onclick={() => showPreview = !showPreview}>
-        {showPreview ? 'Hide' : 'Show'} SQL Preview
-      </Button>
-    </div>
-
-    {#if showPreview}
-      <SQLPreview config={$policyConfig} />
-    {/if}
+        {#if showPreview}
+          <SQLPreview config={$policyConfig} />
+        {/if}
+      </div>
+    </main>
   </div>
-</main>
+</div>
+
+<!-- Connection Dialog -->
+<ConnectionDialog
+  open={showConnectionDialog}
+  onClose={() => showConnectionDialog = false}
+  onConnected={handleConnected}
+  initialError={initialLoadError}
+/>
+
 <style>
   /* Minimal styles - most styling is done via Tailwind classes */
 </style>

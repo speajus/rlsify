@@ -21,6 +21,7 @@ import {
   SchemaServiceProto,
   PolicyServiceProto,
   HealthServiceProto,
+  ConnectionServiceProto,
 } from '@speajus/rlsify-types';
 
 import {
@@ -30,11 +31,13 @@ import {
 import { SchemaServiceImpl } from './services/schema-service.js';
 import { PolicyServiceImpl } from './services/policy-service.js';
 import { HealthServiceImpl } from './services/health-service.js';
+import { ConnectionServiceImpl } from './services/connection-service.js';
 
 // Export service implementations for desktop app and other consumers
 export { SchemaServiceImpl } from './services/schema-service.js';
 export { PolicyServiceImpl } from './services/policy-service.js';
 export { HealthServiceImpl } from './services/health-service.js';
+export { ConnectionServiceImpl } from './services/connection-service.js';
 
 // Create container with configuration loaded via @speajus/diblob-config
 const { container, config } = createServiceContainer();
@@ -66,19 +69,36 @@ async function start() {
       port: config.grpc.port,
     });
 
-    // Register gRPC services - create service instances
-    grpcServiceRegistry.registerService(SchemaServiceProto, new SchemaServiceImpl(dbPool));
-    grpcServiceRegistry.registerService(PolicyServiceProto, new PolicyServiceImpl(dbPool));
-    grpcServiceRegistry.registerService(HealthServiceProto, new HealthServiceImpl(dbPool));
+    // Create service instances once
+    const schemaService = new SchemaServiceImpl(dbPool);
+    const policyService = new PolicyServiceImpl(dbPool);
+    const healthService = new HealthServiceImpl(dbPool);
+
+    // Create connection service (manages pool switching)
+    const connectionService = new ConnectionServiceImpl(dbPool, (newPool) => {
+      // Update the pool reference in existing service instances
+      if (newPool) {
+        schemaService.setPool(newPool);
+        policyService.setPool(newPool);
+        healthService.setPool(newPool);
+      }
+    });
+
+    // Register gRPC services
+    grpcServiceRegistry.registerService(SchemaServiceProto, schemaService);
+    grpcServiceRegistry.registerService(PolicyServiceProto, policyService);
+    grpcServiceRegistry.registerService(HealthServiceProto, healthService);
+    grpcServiceRegistry.registerService(ConnectionServiceProto, connectionService);
 
     // Resolve the gRPC server to start it
     await container.resolve(grpcServer);
 
     console.log(`\n🔒 RLSify gRPC Service running at ${config.grpc.host}:${config.grpc.port}`);
     console.log('\ngRPC Services:');
-    console.log(`  rlsify.v1.SchemaService  - Database schema introspection`);
-    console.log(`  rlsify.v1.PolicyService  - Policy generation and validation`);
-    console.log(`  rlsify.v1.HealthService  - Health checks`);
+    console.log(`  rlsify.v1.SchemaService     - Database schema introspection`);
+    console.log(`  rlsify.v1.PolicyService     - Policy generation and validation`);
+    console.log(`  rlsify.v1.HealthService     - Health checks`);
+    console.log(`  rlsify.v1.ConnectionService - Database connection management`);
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

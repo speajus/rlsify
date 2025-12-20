@@ -5,13 +5,14 @@
   import { Button } from '$lib/components/ui/button/index.js';
   import { Label } from '$lib/components/ui/label/index.js';
   import { Input } from '$lib/components/ui/input/index.js';
-  import { Textarea } from '$lib/components/ui/textarea/index.js';
   import { Badge } from '$lib/components/ui/badge/index.js';
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '$lib/components/ui/select/index.js';
+  import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '$lib/components/ui/collapsible/index.js';
+  import JsonEditor from '$lib/components/JsonEditor.svelte';
   import Check from 'lucide-svelte/icons/check';
+  import ChevronRight from 'lucide-svelte/icons/chevron-right';
   import X from 'lucide-svelte/icons/x';
   import Play from 'lucide-svelte/icons/play';
-  import Plus from 'lucide-svelte/icons/plus';
   import Trash2 from 'lucide-svelte/icons/trash-2';
   import Loader2 from 'lucide-svelte/icons/loader-2';
 
@@ -27,12 +28,33 @@
   const DEFAULT_USER_ID = '550e8400-e29b-41d4-a716-446655440000';
   const DEFAULT_ORG_ID = '660e8400-e29b-41d4-a716-446655440000';
 
+  // Realistic JWT claims similar to Supabase Auth
+  const DEFAULT_CLAIMS = JSON.stringify({
+    iss: 'https://example.supabase.co/auth/v1',
+    sub: DEFAULT_USER_ID,
+    aud: 'authenticated',
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    iat: Math.floor(Date.now() / 1000),
+    email: 'user@example.com',
+    phone: '',
+    app_metadata: {
+      provider: 'email',
+      providers: ['email']
+    },
+    user_metadata: {
+      org_id: DEFAULT_ORG_ID,
+      role: 'member'
+    },
+    role: 'authenticated'
+  }, null, 2);
+
   let sessionRole = $state('authenticated');
   let sessionUserId = $state(DEFAULT_USER_ID);
-  let sessionClaims = $state(`{"org_id": "${DEFAULT_ORG_ID}"}`);
+  let sessionClaims = $state(DEFAULT_CLAIMS);
   let testOperation = $state<'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE'>('SELECT');
   let isLoading = $state(false);
   let testError = $state<string | null>(null);
+  let claimsOpen = $state(false);
 
   // Default sample row with common RLS fields (using UUIDs for proper type matching)
   const defaultSampleRow = {
@@ -45,6 +67,15 @@
   };
   let sampleRowJson = $state(JSON.stringify(defaultSampleRow, null, 2));
 
+  // Derived parsed row values for the table editor
+  let parsedRowValues = $derived.by(() => {
+    try {
+      return JSON.parse(sampleRowJson) || {};
+    } catch {
+      return {};
+    }
+  });
+
   interface TestCase {
     id: string;
     name: string;
@@ -53,6 +84,7 @@
     claims: string;
     rowData: string;
     operation: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE';
+    expectedOutcome: 'allow' | 'deny';
   }
 
   let testCases = $state<TestCase[]>([]);
@@ -92,9 +124,53 @@
     return '';
   }
 
-  function mapOperationToCommand(op: string): number {
+  function mapOperationToCommand(op: string | string[]): number {
     const mapping: Record<string, number> = { 'SELECT': 1, 'INSERT': 2, 'UPDATE': 3, 'DELETE': 4, 'ALL': 5 };
-    return mapping[op] ?? 5;
+    // Handle both single command and array (take first for proto)
+    const singleOp = Array.isArray(op) ? op[0] : op;
+    return mapping[singleOp] ?? 5;
+  }
+
+  function parseRowJson(json: string): Record<string, unknown> {
+    try {
+      return JSON.parse(json) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function formatCellValue(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  }
+
+  function updateRowValue(columnName: string, inputValue: string, columnType: string) {
+    const rowValues = parseRowJson(sampleRowJson);
+    const type = columnType.toLowerCase();
+
+    // Parse value based on column type
+    let parsedValue: unknown = inputValue;
+    if (type.includes('int') || type.includes('numeric') || type.includes('decimal') || type.includes('float') || type.includes('double')) {
+      parsedValue = inputValue === '' ? 0 : Number(inputValue);
+    } else if (type.includes('bool')) {
+      parsedValue = inputValue.toLowerCase() === 'true' || inputValue === '1';
+    } else if (type.includes('json')) {
+      try {
+        parsedValue = JSON.parse(inputValue);
+      } catch {
+        parsedValue = inputValue;
+      }
+    } else if (type.includes('array')) {
+      try {
+        parsedValue = JSON.parse(inputValue);
+      } catch {
+        parsedValue = inputValue.split(',').map(s => s.trim());
+      }
+    }
+
+    rowValues[columnName] = parsedValue;
+    sampleRowJson = JSON.stringify(rowValues, null, 2);
   }
 
   async function runTests() {
@@ -167,11 +243,19 @@
     }
   }
 
-  function addTestCase() {
+  function addTestCase(expectedOutcome: 'allow' | 'deny' = 'allow') {
+    const isNegativeCase = expectedOutcome === 'deny';
+    // For negative cases, use a different user ID to simulate unauthorized access
+    const testUserId = isNegativeCase ? 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' : sessionUserId;
     testCases = [...testCases, {
-      id: crypto.randomUUID(), name: 'Test Case ' + (testCases.length + 1),
-      role: sessionRole, userId: sessionUserId, claims: sessionClaims,
-      rowData: sampleRowJson, operation: testOperation,
+      id: crypto.randomUUID(),
+      name: isNegativeCase ? 'Should Deny: ' + (testCases.length + 1) : 'Should Allow: ' + (testCases.length + 1),
+      role: sessionRole,
+      userId: testUserId,
+      claims: sessionClaims,
+      rowData: sampleRowJson,
+      operation: testOperation,
+      expectedOutcome,
     }];
   }
 
@@ -203,7 +287,7 @@
     <!-- Session Context Section -->
     <div class="space-y-4">
       <h3 class="text-sm font-semibold text-foreground">Session Context</h3>
-      <div class="grid grid-cols-4 gap-4">
+      <div class="grid grid-cols-3 gap-4">
         <div class="space-y-2">
           <Label>Role</Label>
           <Select type="single" value={sessionRole} onValueChange={(v) => { if (v) sessionRole = v; }}>
@@ -222,10 +306,6 @@
           <Input bind:value={sessionUserId} placeholder="user-123" />
         </div>
         <div class="space-y-2">
-          <Label>Claims (JSON)</Label>
-          <Input bind:value={sessionClaims} placeholder={'{"org_id": "org-1"}'} />
-        </div>
-        <div class="space-y-2">
           <Label>Operation</Label>
           <Select type="single" value={testOperation} onValueChange={(v) => { if (v) testOperation = v as typeof testOperation; }}>
             <SelectTrigger>
@@ -239,12 +319,83 @@
           </Select>
         </div>
       </div>
+      <Collapsible bind:open={claimsOpen}>
+        <CollapsibleTrigger
+          class="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full text-left py-1"
+        >
+          <ChevronRight class="h-4 w-4 transition-transform {claimsOpen ? 'rotate-90' : ''}" />
+          <span>JWT Claims (JSON)</span>
+          <Badge variant="outline" class="ml-1 text-xs">
+            {Object.keys(JSON.parse(sessionClaims || '{}')).length} fields
+          </Badge>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div class="mt-2">
+            <JsonEditor
+              value={sessionClaims}
+              onUpdate={(v) => sessionClaims = v}
+              rows={8}
+            />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
 
-    <!-- Sample Row Data -->
+    <!-- Sample Row Data as Table -->
     <div class="space-y-2">
-      <Label>Sample Row Data (JSON)</Label>
-      <Textarea bind:value={sampleRowJson} rows={6} class="font-mono text-sm" />
+      <div class="flex items-center justify-between">
+        <span class="text-sm font-medium">Sample Row Data</span>
+        {#if tableName}
+          <span class="text-xs text-muted-foreground font-mono">{tableName}</span>
+        {/if}
+      </div>
+      {#if tableInfo?.columns && tableInfo.columns.length > 0}
+        <div class="rounded-lg border border-border overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-muted/50">
+              <tr>
+                <th class="px-3 py-2 text-left font-medium text-muted-foreground w-1/3">Column</th>
+                <th class="px-3 py-2 text-left font-medium text-muted-foreground w-1/6">Type</th>
+                <th class="px-3 py-2 text-left font-medium text-muted-foreground">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each tableInfo.columns as col, idx}
+                <tr class="border-t border-border {idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'}">
+                  <td class="px-3 py-1.5">
+                    <div class="flex items-center gap-1.5">
+                      <span class="font-mono text-xs">{col.name}</span>
+                      {#if col.isPrimaryKey}
+                        <span class="text-[9px] px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400">PK</span>
+                      {/if}
+                      {#if col.isForeignKey}
+                        <span class="text-[9px] px-1 py-0.5 rounded bg-blue-500/20 text-blue-400">FK</span>
+                      {/if}
+                    </div>
+                  </td>
+                  <td class="px-3 py-1.5">
+                    <span class="font-mono text-xs text-muted-foreground">{col.type}</span>
+                  </td>
+                  <td class="px-3 py-1.5">
+                    <input
+                      type="text"
+                      class="w-full px-2 py-1 text-xs font-mono bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-ring"
+                      value={formatCellValue(parsedRowValues[col.name])}
+                      oninput={(e) => updateRowValue(col.name, (e.target as HTMLInputElement).value, col.type)}
+                    />
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {:else}
+        <JsonEditor
+          value={sampleRowJson}
+          onUpdate={(v) => sampleRowJson = v}
+          rows={6}
+        />
+      {/if}
     </div>
 
     <!-- Error Display -->
@@ -336,24 +487,60 @@
     <!-- Test Cases -->
     <div class="space-y-4">
       <div class="flex items-center justify-between">
-        <h3 class="text-sm font-semibold text-foreground">Saved Test Cases</h3>
-        <Button size="sm" variant="outline" onclick={addTestCase}>
-          <Plus class="mr-1 h-3 w-3" />
-          Add Test Case
-        </Button>
+        <h3 class="text-sm font-semibold text-foreground">Test Cases</h3>
+        <div class="flex gap-2">
+          <Button size="sm" variant="outline" class="text-green-500 border-green-500/50 hover:bg-green-500/10" onclick={() => addTestCase('allow')}>
+            <Check class="mr-1 h-3 w-3" />
+            Add Allow Case
+          </Button>
+          <Button size="sm" variant="outline" class="text-red-500 border-red-500/50 hover:bg-red-500/10" onclick={() => addTestCase('deny')}>
+            <X class="mr-1 h-3 w-3" />
+            Add Deny Case
+          </Button>
+        </div>
       </div>
       {#each testCases as tc (tc.id)}
-        <Card class="border-dashed">
+        {@const tcResults = testResults.get(tc.id)}
+        {@const actualOutcome = tcResults?.every(r => r.overallAllowed) ? 'allow' : 'deny'}
+        {@const testPassed = tcResults ? actualOutcome === tc.expectedOutcome : null}
+        <Card class={`border-dashed ${tc.expectedOutcome === 'deny' ? 'border-red-500/30' : 'border-green-500/30'}`}>
           <CardHeader class="py-3">
             <div class="flex items-center justify-between">
-              <Input
-                value={tc.name}
-                oninput={(e) => updateTestCase(tc.id, { name: e.currentTarget.value })}
-                class="w-48 h-8 text-sm"
-              />
-              <Button size="sm" variant="ghost" onclick={() => removeTestCase(tc.id)}>
-                <Trash2 class="h-4 w-4" />
-              </Button>
+              <div class="flex items-center gap-2">
+                <Input
+                  value={tc.name}
+                  oninput={(e) => updateTestCase(tc.id, { name: e.currentTarget.value })}
+                  class="w-48 h-8 text-sm"
+                />
+                <Badge variant={tc.expectedOutcome === 'allow' ? 'default' : 'destructive'} class={tc.expectedOutcome === 'allow' ? 'bg-green-600' : ''}>
+                  Expect: {tc.expectedOutcome.toUpperCase()}
+                </Badge>
+                {#if testPassed !== null}
+                  {#if testPassed}
+                    <Badge variant="outline" class="text-green-500 border-green-500 bg-green-500/10">
+                      <Check class="h-3 w-3 mr-1" />PASS
+                    </Badge>
+                  {:else}
+                    <Badge variant="outline" class="text-red-500 border-red-500 bg-red-500/10">
+                      <X class="h-3 w-3 mr-1" />FAIL (got {actualOutcome})
+                    </Badge>
+                  {/if}
+                {/if}
+              </div>
+              <div class="flex items-center gap-2">
+                <Select type="single" value={tc.expectedOutcome} onValueChange={(v) => { if (v) updateTestCase(tc.id, { expectedOutcome: v as 'allow' | 'deny' }); }}>
+                  <SelectTrigger class="h-8 w-24">
+                    <SelectValue>{tc.expectedOutcome}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="allow" label="Allow" />
+                    <SelectItem value="deny" label="Deny" />
+                  </SelectContent>
+                </Select>
+                <Button size="sm" variant="ghost" onclick={() => removeTestCase(tc.id)}>
+                  <Trash2 class="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent class="pt-0 space-y-3">
@@ -380,23 +567,31 @@
                 />
               </div>
               <div class="space-y-1">
-                <Label class="text-xs">Claims</Label>
-                <Input
-                  value={tc.claims}
-                  oninput={(e) => updateTestCase(tc.id, { claims: e.currentTarget.value })}
-                  class="h-8 text-sm"
-                />
+                <Label class="text-xs">Operation</Label>
+                <Select type="single" value={tc.operation} onValueChange={(v) => { if (v) updateTestCase(tc.id, { operation: v as 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' }); }}>
+                  <SelectTrigger class="h-8">
+                    <SelectValue>{tc.operation}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {#each operations as op}
+                      <SelectItem value={op} label={op} />
+                    {/each}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-            <div class="space-y-1">
-              <Label class="text-xs">Row Data (JSON)</Label>
-              <Textarea
-                value={tc.rowData}
-                oninput={(e) => updateTestCase(tc.id, { rowData: e.currentTarget.value })}
-                rows={3}
-                class="font-mono text-xs"
-              />
-            </div>
+            <JsonEditor
+              value={tc.claims}
+              onUpdate={(v) => updateTestCase(tc.id, { claims: v })}
+              rows={2}
+              label="JWT Claims (JSON)"
+            />
+            <JsonEditor
+              value={tc.rowData}
+              onUpdate={(v) => updateTestCase(tc.id, { rowData: v })}
+              rows={3}
+              label="Row Data (JSON)"
+            />
           </CardContent>
         </Card>
       {/each}

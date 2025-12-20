@@ -198,8 +198,8 @@ export interface PolicyDefinition {
   /** Unique name for the policy */
   name: string;
 
-  /** SQL command this policy applies to */
-  command: PolicyCommand;
+  /** SQL command(s) this policy applies to - can be single or multiple */
+  command: PolicyCommand | PolicyCommand[];
 
   /** SQL expression for USING clause (for SELECT, UPDATE, DELETE) - legacy string format */
   using?: string;
@@ -683,3 +683,33 @@ export {
   type ReadinessCheckResponse,
 } from './gen/rlsify/v1/health_pb.js';
 
+export {
+  // Connection Service
+  ConnectionService as ConnectionServiceProto,
+  DatabaseConnectionSchema,
+  ConnectDatabaseRequestSchema,
+  ConnectDatabaseResponseSchema,
+  DisconnectDatabaseRequestSchema,
+  DisconnectDatabaseResponseSchema,
+  GetConnectionStatusRequestSchema,
+  GetConnectionStatusResponseSchema,
+  SaveConnectionRequestSchema,
+  SaveConnectionResponseSchema,
+  ListConnectionsRequestSchema,
+  ListConnectionsResponseSchema,
+  DeleteConnectionRequestSchema,
+  DeleteConnectionResponseSchema,
+  type DatabaseConnection,
+  type ConnectDatabaseRequest,
+  type ConnectDatabaseResponse,
+  type DisconnectDatabaseRequest,
+  type DisconnectDatabaseResponse,
+  type GetConnectionStatusRequest,
+  type GetConnectionStatusResponse,
+  type SaveConnectionRequest,
+  type SaveConnectionResponse,
+  type ListConnectionsRequest,
+  type ListConnectionsResponse,
+  type DeleteConnectionRequest,
+  type DeleteConnectionResponse,
+} from './gen/rlsify/v1/connection_pb.js';

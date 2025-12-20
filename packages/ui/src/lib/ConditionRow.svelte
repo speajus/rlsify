@@ -101,7 +101,6 @@
     </div>
     
     <div class="operator-section">
-      <label>Operator</label>
       <select 
         value={condition.operator} 
         onchange={(e) => handleOperatorChange(e.currentTarget.value)}

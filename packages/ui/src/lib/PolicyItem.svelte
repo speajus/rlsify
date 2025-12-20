@@ -77,13 +77,29 @@
     }
   }
 
-  function handleCommandChange(value: string | undefined) {
+  function handleCommandChange(value: string[] | undefined) {
     if (value) {
-      handleUpdatePolicy('command', value);
+      // Remove duplicates and store as array
+      const uniqueValues = [...new Set(value)];
+      handleUpdatePolicy('command', uniqueValues);
     }
   }
+
+  // Convert command to array for multi-select display (handles both string and array)
+  let commandValues = $derived.by(() => {
+    if (!policy.command) return [];
+    if (Array.isArray(policy.command)) return policy.command;
+    return [policy.command];
+  });
 </script>
 
+{#if !baseTable}
+  <Card class="border-border border-dashed">
+    <CardContent class="py-8">
+      <p class="text-muted-foreground text-center">Select a table above to configure this policy</p>
+    </CardContent>
+  </Card>
+{:else}
 <Card class="border-border hover:border-primary/50 transition-colors">
   <CardHeader class="pb-4">
     <div class="flex justify-between items-center">
@@ -108,8 +124,10 @@
             Policy: {policy.name || `Policy ${index + 1}`}
           </button>
         {/if}
-        {#if policy.command}
-          <Badge variant="secondary">{policy.command}</Badge>
+        {#if commandValues.length > 0}
+          {#each commandValues as cmd}
+            <Badge variant="secondary">{cmd}</Badge>
+          {/each}
         {/if}
       </CardTitle>
       <Button variant="destructive" size="sm" onclick={onRemove}>
@@ -134,10 +152,16 @@
 
       <div class="flex flex-col gap-2">
         <Label for="command-{index}">Command</Label>
-        <Select type="single" value={policy.command} onValueChange={handleCommandChange}>
+        <Select type="multiple" value={commandValues} onValueChange={handleCommandChange}>
           <SelectTrigger>
-            <SelectValue placeholder="Select command">
-              {policy.command || 'Select command'}
+            <SelectValue placeholder="Select commands">
+              {#if commandValues.length === 0}
+                Select commands
+              {:else if commandValues.length === 1}
+                {commandValues[0]}
+              {:else}
+                {commandValues.join(', ')}
+              {/if}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -172,7 +196,7 @@
               if (!policy.usingExpression) {
                 updateUsingExpression({ user_id: { _eq: { var: 'auth.uid()', type: 'uuid' } } });
               }
-            }}>Templates</TabsTrigger>
+            }}>Source</TabsTrigger>
             <TabsTrigger value="sql" class="text-xs px-2 py-1">SQL</TabsTrigger>
           </TabsList>
         </Tabs>
@@ -213,7 +237,7 @@
               if (!policy.withCheckExpression) {
                 updateCheckExpression({ user_id: { _eq: { var: 'auth.uid()', type: 'uuid' } } });
               }
-            }}>Templates</TabsTrigger>
+            }}>Source</TabsTrigger>
             <TabsTrigger value="sql" class="text-xs px-2 py-1">SQL</TabsTrigger>
           </TabsList>
         </Tabs>
@@ -244,6 +268,7 @@
     </div>
   </CardContent>
 </Card>
+{/if}
 <style>
   /* Minimal styles - most styling is done via Tailwind classes */
 </style>

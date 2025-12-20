@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package rlsify.v1;
+
+// Database connection configuration
+message DatabaseConnection {
+  string id = 1;
+  string name = 2;
+  string host = 3;
+  int32 port = 4;
+  string database = 5;
+  string user = 6;
+  string password = 7;
+  bool ssl = 8;
+  int64 created_at = 9;
+  int64 last_used_at = 10;
+}
+
+// Request to connect to a database
+message ConnectDatabaseRequest {
+  string host = 1;
+  int32 port = 2;
+  string database = 3;
+  string user = 4;
+  string password = 5;
+  bool ssl = 6;
+}
+
+// Response from connecting to a database
+message ConnectDatabaseResponse {
+  bool success = 1;
+  optional string error = 2;
+  optional string connection_id = 3;
+}
+
+// Request to disconnect from the current database
+message DisconnectDatabaseRequest {}
+
+// Response from disconnecting
+message DisconnectDatabaseResponse {
+  bool success = 1;
+}
+
+// Request to get current connection status
+message GetConnectionStatusRequest {}
+
+// Response with connection status
+message GetConnectionStatusResponse {
+  bool connected = 1;
+  optional string host = 2;
+  optional int32 port = 3;
+  optional string database = 4;
+  optional string user = 5;
+  optional string connection_id = 6;
+  optional string error = 7;
+}
+
+// Request to save a connection
+message SaveConnectionRequest {
+  optional string id = 1;  // If provided, updates existing connection
+  string name = 2;
+  string host = 3;
+  int32 port = 4;
+  string database = 5;
+  string user = 6;
+  string password = 7;
+  bool ssl = 8;
+}
+
+// Response from saving a connection
+message SaveConnectionResponse {
+  DatabaseConnection connection = 1;
+}
+
+// Request to list saved connections
+message ListConnectionsRequest {}
+
+// Response with list of saved connections
+message ListConnectionsResponse {
+  repeated DatabaseConnection connections = 1;
+  optional string last_connection_id = 2;
+}
+
+// Request to delete a saved connection
+message DeleteConnectionRequest {
+  string id = 1;
+}
+
+// Response from deleting a connection
+message DeleteConnectionResponse {
+  bool deleted = 1;
+}
+
+// Connection management service
+service ConnectionService {
+  // Connect to a database
+  rpc Connect(ConnectDatabaseRequest) returns (ConnectDatabaseResponse);
+  
+  // Disconnect from the current database
+  rpc Disconnect(DisconnectDatabaseRequest) returns (DisconnectDatabaseResponse);
+  
+  // Get current connection status
+  rpc GetStatus(GetConnectionStatusRequest) returns (GetConnectionStatusResponse);
+  
+  // Save a connection for later use
+  rpc SaveConnection(SaveConnectionRequest) returns (SaveConnectionResponse);
+  
+  // List all saved connections
+  rpc ListConnections(ListConnectionsRequest) returns (ListConnectionsResponse);
+  
+  // Delete a saved connection
+  rpc DeleteConnection(DeleteConnectionRequest) returns (DeleteConnectionResponse);
+}
+

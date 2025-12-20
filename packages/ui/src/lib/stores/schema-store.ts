@@ -10,13 +10,20 @@ import { multiTenantSchema } from '../examples/multi-tenant-schema.js';
 
 interface SchemaState {
   schema: SchemaInfo | null;
+  currentSchema: string;
+  availableSchemas: string[];
   loading: boolean;
   error: string | null;
 }
 
+// Common PostgreSQL schemas - can be expanded when we add a listSchemas API
+const DEFAULT_SCHEMAS = ['public', 'auth', 'storage', 'extensions', 'graphql', 'graphql_public', 'realtime', 'supabase_functions'];
+
 // Create a writable store
 const state = writable<SchemaState>({
   schema: null,
+  currentSchema: 'public',
+  availableSchemas: DEFAULT_SCHEMAS,
   loading: false,
   error: null,
 });
@@ -31,12 +38,14 @@ export const loading = derived(state, $state => $state.loading);
 export const error = derived(state, $state => $state.error);
 export const tables = derived(state, $state => $state.schema?.tables || []);
 export const foreignKeys = derived(state, $state => $state.schema?.foreignKeys || []);
+export const currentSchema = derived(state, $state => $state.currentSchema);
+export const availableSchemas = derived(state, $state => $state.availableSchemas);
 
 /**
  * Load schema from database via the RLSify gRPC service
  */
 export async function loadSchema(schemaName: string = 'public'): Promise<void> {
-  state.update(s => ({ ...s, loading: true, error: null }));
+  state.update(s => ({ ...s, loading: true, error: null, currentSchema: schemaName }));
 
   try {
     // Call the gRPC service via Connect-Web

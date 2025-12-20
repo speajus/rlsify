@@ -45,9 +45,16 @@ import {
 import { tryParseSqlExpression } from '@speajus/rlsify-core';
 
 export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto> {
+  private pool: Pool;
+  private validator: PolicyValidator;
 
-  constructor(private pool: Pool, private validator: PolicyValidator = policyValidatorBlob) {
-    // Resolve services from the container
+  constructor(pool: Pool, validator: PolicyValidator = policyValidatorBlob) {
+    this.pool = pool;
+    this.validator = validator;
+  }
+
+  setPool(pool: Pool) {
+    this.pool = pool;
   }
 
   async previewPolicies(request: PreviewPoliciesRequest) {

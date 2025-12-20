@@ -72,7 +72,7 @@ export function addPolicy() {
         ...s.config.policies,
         {
           name: '',
-          command: 'SELECT',
+          command: ['SELECT'],
           using: '',
         },
       ],
@@ -302,7 +302,7 @@ export async function fetchExistingPolicies(schema?: string, table?: string): Pr
 export function importExistingPolicy(policy: ExistingRLSPolicy): void {
   const newPolicy: PolicyDefinition = {
     name: policy.policyName,
-    command: policy.command as 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'ALL',
+    command: [policy.command as 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'ALL'],
     using: policy.usingExpression ?? '',
     withCheck: policy.withCheckExpression,
     roles: [...policy.roles],
@@ -369,14 +369,19 @@ function convertFromProtoConfig(proto: SavedPolicy['config']): RLSPolicyConfig {
   };
 }
 
-function mapCommandToProto(cmd: string): number {
+type PolicyCommandType = 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'ALL';
+
+function mapCommandToProto(cmd: PolicyCommandType | PolicyCommandType[]): number {
   const mapping: Record<string, number> = { SELECT: 1, INSERT: 2, UPDATE: 3, DELETE: 4, ALL: 5 };
-  return mapping[cmd] ?? 5;
+  // If array, take first command for proto (proto only supports single command)
+  const singleCmd = Array.isArray(cmd) ? cmd[0] : cmd;
+  return mapping[singleCmd] ?? 5;
 }
 
-function mapCommandFromProto(cmd: number): 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'ALL' {
-  const mapping: Record<number, 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'ALL'> = { 1: 'SELECT', 2: 'INSERT', 3: 'UPDATE', 4: 'DELETE', 5: 'ALL' };
-  return mapping[cmd] ?? 'ALL';
+function mapCommandFromProto(cmd: number): PolicyCommandType[] {
+  const mapping: Record<number, PolicyCommandType> = { 1: 'SELECT', 2: 'INSERT', 3: 'UPDATE', 4: 'DELETE', 5: 'ALL' };
+  // Return as array for consistency
+  return [mapping[cmd] ?? 'ALL'];
 }
 
 function mapJoinTypeToProto(type?: string): number {

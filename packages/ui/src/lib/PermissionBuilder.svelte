@@ -18,7 +18,7 @@
   // Sync editable JSON with expression when not editing
   $effect(() => {
     if (!isEditing) {
-      editableJson = expression ? JSON.stringify(expression, null, 2) : '{}';
+      editableJson = expression ? JSON.stringify(expression, null, 2) : '';
     }
   });
 

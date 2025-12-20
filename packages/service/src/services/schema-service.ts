@@ -20,7 +20,15 @@ import {
 } from '@speajus/rlsify-types';
 
 export class SchemaServiceImpl implements ServiceImpl<typeof SchemaServiceProto> {
-  constructor(private pool: Pool) {}
+  private pool: Pool;
+
+  constructor(pool: Pool) {
+    this.pool = pool;
+  }
+
+  setPool(pool: Pool) {
+    this.pool = pool;
+  }
 
   async getSchema(request: GetSchemaRequest) {
     const schemaName = request.schema ?? 'public';

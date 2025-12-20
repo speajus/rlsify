@@ -17,7 +17,15 @@ import {
 const VERSION = '0.1.0';
 
 export class HealthServiceImpl implements ServiceImpl<typeof HealthServiceProto> {
-  constructor(private pool: Pool) {}
+  private pool: Pool;
+
+  constructor(pool: Pool) {
+    this.pool = pool;
+  }
+
+  setPool(pool: Pool) {
+    this.pool = pool;
+  }
 
   async check(_request: HealthCheckRequest) {
     return create(HealthCheckResponseSchema, {
