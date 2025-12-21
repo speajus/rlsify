@@ -492,7 +492,6 @@ CRITICAL: Call the generate_full_policy tool with ALL fields populated.`;
 **Context:** User has existing policies but wants to start fresh with AI
 
 **Options:**
-- Add a "Clear & Regenerate All" button
 - Require manual deletion first
 - Generate with different names to avoid conflicts
 

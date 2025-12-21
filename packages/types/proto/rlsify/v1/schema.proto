@@ -70,15 +70,40 @@ message GetForeignKeysResponse {
   repeated ForeignKeyRelation foreign_keys = 1;
 }
 
+// Request to get table data (rows)
+message GetTableDataRequest {
+  string table_name = 1;
+  optional string schema = 2;
+  optional int32 limit = 3; // Default 10
+  optional int32 offset = 4; // Default 0
+  optional string filter_column = 5; // Optional column to filter
+  optional string filter_value = 6; // Optional value to filter by
+}
+
+// A single row of table data
+message TableRow {
+  // Map of column name to JSON-encoded value
+  map<string, string> values = 1;
+}
+
+// Response with table data
+message GetTableDataResponse {
+  repeated TableRow rows = 1;
+  int32 total_count = 2;
+}
+
 // Schema introspection service
 service SchemaService {
   // Get database schema information
   rpc GetSchema(GetSchemaRequest) returns (GetSchemaResponse);
-  
+
   // Get details for a specific table
   rpc GetTable(GetTableRequest) returns (GetTableResponse);
-  
+
   // Get foreign key relationships for a table
   rpc GetForeignKeys(GetForeignKeysRequest) returns (GetForeignKeysResponse);
+
+  // Get table data (rows) with optional filtering
+  rpc GetTableData(GetTableDataRequest) returns (GetTableDataResponse);
 }
 

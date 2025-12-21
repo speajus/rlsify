@@ -5,18 +5,52 @@
  */
 
 import { writable, derived } from 'svelte/store';
-import type { DatabaseConnection } from '@speajus/rlsify-types';
 import { connectionClient } from '../api/client.js';
 
+type ElectronDatabaseStatus = {
+  connected: boolean;
+  database?: string;
+  host?: string;
+  port?: number;
+  user?: string;
+};
+
+type ElectronAPI = {
+  connectDatabase(config: {
+    host: string;
+    port: number;
+    database: string;
+    user: string;
+    password: string;
+    ssl?: boolean;
+  }): Promise<{ success: boolean; error?: string }>;
+  disconnectDatabase(): Promise<void>;
+  getDatabaseStatus(): Promise<ElectronDatabaseStatus>;
+};
+
+function getElectronAPI(): ElectronAPI | null {
+  if (typeof window === 'undefined') return null;
+  const candidate = (window as unknown as { electronAPI?: ElectronAPI }).electronAPI;
+  if (!candidate) return null;
+  if (typeof candidate.connectDatabase !== 'function') return null;
+  if (typeof candidate.disconnectDatabase !== 'function') return null;
+  if (typeof candidate.getDatabaseStatus !== 'function') return null;
+  return candidate;
+}
+
+type DatabaseConnection ={
+  id:string;
+  name: string;
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  ssl: boolean;
+}
 interface ConnectionState {
   connected: boolean;
-  currentConnection: {
-    host?: string;
-    port?: number;
-    database?: string;
-    user?: string;
-    connectionId?: string;
-  } | null;
+  currentConnection?:DatabaseConnection | null;
   savedConnections: DatabaseConnection[];
   lastConnectionId: string | null;
   loading: boolean;
@@ -93,17 +127,32 @@ export const connectionError = derived(state, $state => $state.error);
  */
 export async function checkConnectionStatus(): Promise<void> {
   try {
+    const electronAPI = getElectronAPI();
+
+    // Electron desktop: status comes from the main process via IPC.
+    if (electronAPI) {
+      const status = await electronAPI.getDatabaseStatus();
+      state.update(s => ({
+        ...s,
+        connected: status.connected,
+        currentConnection: status.connected ? s.currentConnection : null,
+        error: null,
+      }));
+      return;
+    }
+
+    // Web/service: status comes from the ConnectionService.
     const response = await connectionClient.getStatus({});
     state.update(s => ({
       ...s,
       connected: response.connected,
-      currentConnection: response.connected ? {
-        host: response.host,
-        port: response.port,
-        database: response.database,
-        user: response.user,
-        connectionId: response.connectionId,
-      } : null,
+      currentConnection:
+        response.connected && s.currentConnection
+          ? {
+              ...s.currentConnection,
+              id: response.connectionId ?? s.currentConnection?.id!,
+            }
+          : null,
       // Capture any error returned from the service (e.g., database connection failed)
       error: response.error ?? null,
     }));
@@ -127,10 +176,84 @@ export async function connect(params: {
   user: string;
   password: string;
   ssl?: boolean;
+  name?: string;
 }): Promise<{ success: boolean; error?: string }> {
   state.update(s => ({ ...s, loading: true, error: null }));
 
   try {
+    const electronAPI = getElectronAPI();
+
+    // Electron desktop: connect via IPC so we can initialize the main-process container.
+    if (electronAPI) {
+      const result = await electronAPI.connectDatabase({
+        host: params.host,
+        port: params.port,
+        database: params.database,
+        user: params.user,
+        password: params.password,
+        ssl: params.ssl ?? false,
+      });
+
+      if (!result.success) {
+        state.update(s => ({
+          ...s,
+          loading: false,
+          error: result.error ?? 'Connection failed',
+        }));
+        return { success: false, error: result.error };
+      }
+
+      let currentConnectionId: string | null = null;
+      state.update(s => {
+        // Prefer an existing saved connection id if we can match by config.
+        const match = s.savedConnections.find(c =>
+          c.host === params.host &&
+          c.port === params.port &&
+          c.database === params.database &&
+          c.user === params.user &&
+          c.ssl === (params.ssl ?? false)
+        );
+        currentConnectionId = match?.id ?? s.lastConnectionId;
+        return s;
+      });
+
+      const id =
+        currentConnectionId ??
+        `conn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+      const currentConnection: DatabaseConnection = {
+        id,
+        host: params.host,
+        port: params.port,
+        database: params.database,
+        password: params.password,
+        ssl: params.ssl ?? false,
+        user: params.user,
+        name: params.name || `${params.database}@${params.host}`,
+      };
+
+      state.update(s => {
+        const nextConnections = [
+          currentConnection,
+          ...s.savedConnections.filter(c => c.id !== currentConnection.id),
+        ];
+        saveConnectionsToStorage(nextConnections);
+        saveLastConnectionIdToStorage(currentConnection.id);
+        return {
+          ...s,
+          connected: true,
+          currentConnection,
+          savedConnections: nextConnections,
+          lastConnectionId: currentConnection.id,
+          loading: false,
+          error: null,
+        };
+      });
+
+      return { success: true };
+    }
+
+    // Web/service: connect via ConnectionService.
     const response = await connectionClient.connect({
       host: params.host,
       port: params.port,
@@ -141,19 +264,32 @@ export async function connect(params: {
     });
 
     if (response.success) {
-      state.update(s => ({
-        ...s,
-        connected: true,
-        currentConnection: {
+      const currentConnection:DatabaseConnection =  {
+          id: response.connectionId!,        
           host: params.host,
           port: params.port,
           database: params.database,
+          password: params.password,
+          ssl: params.ssl ?? false,
           user: params.user,
-          connectionId: response.connectionId,
-        },
+          name: params.name || `${params.database}@${params.host}`,
+        };
+      state.update(s =>{
+        saveConnectionsToStorage(
+          [
+            currentConnection,
+            ...s.savedConnections.filter(c => c.id !== currentConnection.id),
+          ]
+        )
+        return ({
+        ...s,
+        connected: true,
+        currentConnection,
         loading: false,
         error: null,
-      }));
+      })
+    });
+     
       return { success: true };
     } else {
       state.update(s => ({
@@ -179,7 +315,12 @@ export async function connect(params: {
  */
 export async function disconnect(): Promise<void> {
   try {
-    await connectionClient.disconnect({});
+    const electronAPI = getElectronAPI();
+    if (electronAPI) {
+      await electronAPI.disconnectDatabase();
+    } else {
+      await connectionClient.disconnect({});
+    }
     state.update(s => ({
       ...s,
       connected: false,
@@ -227,7 +368,6 @@ export async function saveConnection(params: {
 }): Promise<DatabaseConnection | null> {
   try {
     const connections = loadConnectionsFromStorage();
-    const now = BigInt(Date.now());
 
     let connection: DatabaseConnection;
 
@@ -244,7 +384,6 @@ export async function saveConnection(params: {
           user: params.user,
           password: params.password,
           ssl: params.ssl ?? false,
-          lastUsedAt: now,
         };
         connections[index] = connection;
       } else {
@@ -258,15 +397,14 @@ export async function saveConnection(params: {
           user: params.user,
           password: params.password,
           ssl: params.ssl ?? false,
-          createdAt: now,
-          lastUsedAt: now,
         };
         connections.push(connection);
       }
     } else {
+      const id = `conn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
       // Create new connection
       connection = {
-        id: `conn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+        id,
         name: params.name,
         host: params.host,
         port: params.port,
@@ -274,8 +412,6 @@ export async function saveConnection(params: {
         user: params.user,
         password: params.password,
         ssl: params.ssl ?? false,
-        createdAt: now,
-        lastUsedAt: now,
       };
       connections.push(connection);
     }

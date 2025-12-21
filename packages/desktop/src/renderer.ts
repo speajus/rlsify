@@ -12,7 +12,8 @@ import { mount } from 'svelte';
 
 
 import { createIpcTransport } from './transport/ipc-transport.js';
-import App from './App.svelte';
+//import App from './App.svelte';
+import App from '@ui/App.svelte';
 import { createContainer } from '@speajus/diblob';
 import { configureClients } from '@ui/api/client';
 

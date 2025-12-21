@@ -673,6 +673,9 @@ export {
   GetTableResponseSchema,
   GetForeignKeysRequestSchema,
   GetForeignKeysResponseSchema,
+  GetTableDataRequestSchema,
+  GetTableDataResponseSchema,
+  TableRowSchema,
   type ColumnInfo as ColumnInfoProto,
   type ForeignKeyRelation as ForeignKeyRelationProto,
   type TableInfo as TableInfoProto,
@@ -683,6 +686,9 @@ export {
   type GetTableResponse,
   type GetForeignKeysRequest,
   type GetForeignKeysResponse,
+  type GetTableDataRequest,
+  type GetTableDataResponse,
+  type TableRow,
 } from './gen/rlsify/v1/schema_pb.js';
 
 export {

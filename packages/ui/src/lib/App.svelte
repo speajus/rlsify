@@ -1,10 +1,11 @@
 <script lang="ts">
-  import PolicyEditor from './lib/PolicyEditor.svelte';
-  import SQLPreview from './lib/SQLPreview.svelte';
-  import ExistingPoliciesImporter from './lib/ExistingPoliciesImporter.svelte';
-  import PolicyTreeView from './lib/PolicyTreeView.svelte';
-  import ConnectionDialog from './lib/ConnectionDialog.svelte';
-  import PolicyTester, { type TestCase } from './lib/PolicyTester.svelte';
+  import PolicyEditor from './PolicyEditor.svelte';
+  import SQLPreview from './SQLPreview.svelte';
+  import ExistingPoliciesImporter from './ExistingPoliciesImporter.svelte';
+  import PolicyTreeView from './PolicyTreeView.svelte';
+  import ConnectionDialog from './ConnectionDialog.svelte';
+  import PolicyTester, { type TestCase } from './PolicyTester.svelte';
+  import TableDataViewer from './TableDataViewer.svelte';
   import {
     policyConfig,
     fetchPolicies,
@@ -14,10 +15,10 @@
     policyError,
     resetConfig,
     currentPolicyId,
-  } from './lib/stores/policy-store.js';
-  import { loadSchema, tables, schema, loading as schemaLoading, error as schemaError, currentSchema, availableSchemas } from './lib/stores/schema-store.js';
-  import { connected, currentConnection, checkConnectionStatus, connectionError, connect, retrieveLastConnection } from './lib/stores/connection-store.js';
-  import { updateTable } from './lib/stores/policy-store.js';
+  } from './stores/policy-store.js';
+  import { loadSchema, tables, schema, loading as schemaLoading, error as schemaError, currentSchema, availableSchemas } from './stores/schema-store.js';
+  import { connected, currentConnection, checkConnectionStatus, connectionError, connect, retrieveLastConnection } from './stores/connection-store.js';
+  import { updateTable } from './stores/policy-store.js';
   import { onMount } from 'svelte';
   import { Button } from '$lib/components/ui/button/index.js';
   import { Card, CardContent } from '$lib/components/ui/card/index.js';
@@ -29,13 +30,14 @@
   import Plus from 'lucide-svelte/icons/plus';
   import ChevronLeft from 'lucide-svelte/icons/chevron-left';
   import ChevronRight from 'lucide-svelte/icons/chevron-right';
-  import { policyClient } from './lib/api/client.js';
+  import { policyClient } from './api/client.js';
   import { PolicyCommand } from '@speajus/rlsify-types';
 
-  // View mode: 'editor' or 'tester'
-  type ViewMode = 'editor' | 'tester';
+  // View mode: 'editor', 'tester', or 'data'
+  type ViewMode = 'editor' | 'tester' | 'data';
   let viewMode = $state<ViewMode>('editor');
   let selectedTestTable = $state<string | null>(null);
+  let selectedDataTable = $state<string | null>(null);
 
   // Track full test cases per table for persistence
   let testsByTable = $state<Map<string, TestCase[]>>(new Map());
@@ -207,13 +209,20 @@
   }
 
   function handleSelectPolicy(id: string) {
+    console.log('handleSelectPolicy called with id:', id);
     fetchPolicy(id);
     viewMode = 'editor';
+    console.log('viewMode set to:', viewMode);
   }
 
   function handleSelectTests(tableName: string) {
     selectedTestTable = tableName;
     viewMode = 'tester';
+  }
+
+  function handleSelectData(tableName: string) {
+    selectedDataTable = tableName;
+    viewMode = 'data';
   }
 
   function handleTestsChange(tests: TestCase[]) {
@@ -255,6 +264,10 @@
   });
   // Get test cases for the selected table
   let testerTestCases = $derived(selectedTestTable ? testsByTable.get(selectedTestTable) ?? [] : []);
+
+  // Derived values for TableDataViewer
+  let dataTableName = $derived(selectedDataTable || '');
+  let dataTableInfo = $derived($schema?.tables.find(t => `${t.schema}.${t.name}` === dataTableName));
 </script>
 
 <div class="min-h-screen flex flex-col">
@@ -329,6 +342,7 @@
               onChangeSchema={handleChangeSchema}
               onOpenConnectionDialog={handleOpenConnectionDialog}
               onSelectTests={handleSelectTests}
+              onSelectData={handleSelectData}
             />
           {/if}
         </div>
@@ -338,6 +352,9 @@
     <!-- Main Content Area -->
     <main class="flex-1 overflow-y-auto">
       <div class="p-6 flex flex-col gap-6">
+        <!-- Debug: Show current view mode -->
+        <div class="text-xs text-muted-foreground">Current view: {viewMode}</div>
+
         <!-- Error Alert -->
         {#if $policyError}
           <Alert variant="destructive" class="py-2 px-3">
@@ -354,6 +371,12 @@
             tableName={testerTableName}
             testCases={testerTestCases}
             onTestsChange={handleTestsChange}
+          />
+        {:else if viewMode === 'data'}
+          <!-- Table Data Viewer -->
+          <TableDataViewer
+            tableName={dataTableName}
+            tableInfo={dataTableInfo}
           />
         {:else}
           <!-- Policy Editor View -->

@@ -118,6 +118,7 @@ export interface AuggieConfig {
   apiKey: string;
   apiUrl?: string; // Optional tenant URL
   model?: string;
+  forceToolUse?: boolean; // Force the AI to use tools
 }
 
 /**
@@ -142,8 +143,8 @@ async function createAuggieClient(config: AuggieConfig): Promise<Auggie> {
         generate_full_policy: generateFullPolicyTool,
         generate_policy_test: generateTestTool,
       },
-      // Let the AI decide when to use tools
-      toolChoice: 'auto',
+      // Force tool use if requested, otherwise let AI decide
+      toolChoice: config.forceToolUse ? 'required' : 'auto',
     };
 
     // Only add model if explicitly provided
@@ -318,7 +319,8 @@ export async function generateFullPolicy(
   const client = await createAuggieClient({
     apiKey: options.apiKey,
     ...(options.apiUrl && { apiUrl: options.apiUrl }),
-    ...(options.model && { model: options.model })
+    ...(options.model && { model: options.model }),
+    forceToolUse: false, // Don't force tool use - let AI decide or respond with JSON
   });
 
   try {
@@ -329,15 +331,42 @@ export async function generateFullPolicy(
 ## User Request
 ${options.prompt}
 
-IMPORTANT: You MUST call the generate_full_policy tool for each policy. Do NOT respond with text explanations.
-Call the tool immediately with the policy definition. If multiple policies are needed, call the tool multiple times.`;
+## Response Format
+You can either:
+1. Call the generate_full_policy tool with the complete policy definition, OR
+2. Respond with a JSON object containing the policy definition
 
-    console.log('Sending full policy prompt to Auggie:', fullPrompt.substring(0, 300) + '...');
+If responding with JSON, use this exact format:
+{
+  "name": "table_command_purpose",
+  "command": ["SELECT"],
+  "description": "Human-readable description",
+  "roles": ["authenticated"],
+  "usingExpression": { /* JSON expression */ },
+  "withCheckExpression": { /* JSON expression or omit */ }
+}
+
+For multiple policies, respond with an array of policy objects.`;
+
+    // Generate a request ID for tracking
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+    console.log('=== Auggie Request ===');
+    console.log('Request ID:', requestId);
+    console.log('Prompt preview:', fullPrompt.substring(0, 300) + '...');
+    console.log('Full prompt length:', fullPrompt.length);
+    console.log('======================');
 
     const response = await client.prompt(fullPrompt);
 
-    console.log('Auggie full policy response:', JSON.stringify(response, null, 2));
+    console.log('=== Auggie Response Debug ===');
+    console.log('Request ID:', requestId);
     console.log('Response type:', typeof response);
+    console.log('Response is null:', response === null);
+    console.log('Response is undefined:', response === undefined);
+    console.log('Response keys:', response && typeof response === 'object' ? Object.keys(response) : 'N/A');
+    console.log('Response JSON:', JSON.stringify(response, null, 2));
+    console.log('=== End Debug ===');
 
     // The Auggie SDK returns an object with text and toolCalls properties
     // Check if response has toolCalls (structured response from SDK)
@@ -370,7 +399,34 @@ Call the tool immediately with the policy definition. If multiple policies are n
     }
 
     // Fallback: Try to parse as JSON string (for backwards compatibility)
-    const responseStr = typeof response === 'string' ? response : JSON.stringify(response);
+    let responseStr = typeof response === 'string' ? response : '';
+
+    // If response is an object with text property, extract it
+    if (typeof response === 'object' && response !== null && 'text' in response) {
+      responseStr = (response as any).text || '';
+    }
+
+    // If still empty, try JSON.stringify
+    if (!responseStr && typeof response === 'object') {
+      responseStr = JSON.stringify(response);
+    }
+
+    // Check if response is empty or just whitespace
+    if (!responseStr || responseStr.trim() === '' || responseStr === '""' || responseStr === '{}') {
+      console.error('AI returned empty response. This usually means:');
+      console.error('1. The API key may be invalid or expired');
+      console.error('2. The model may not support the request');
+      console.error('3. The prompt may be too complex or unclear');
+      console.error('Response object:', response);
+      console.error('Full prompt was:', fullPrompt);
+
+      throw new Error(
+        'AI returned an empty response. Please check:\n' +
+        '1. Your Augment API key is valid and has not expired\n' +
+        '2. Try simplifying your policy description\n' +
+        '3. Check the console logs for more details'
+      );
+    }
 
     // Check if response contains text (AI didn't call the tool)
     if (typeof response === 'string' || (typeof response === 'object' && 'text' in response && !(response as any).toolCalls)) {
@@ -429,7 +485,15 @@ Call the tool immediately with the policy definition. If multiple policies are n
     } catch (parseError) {
       console.error('Failed to parse full policy response:', parseError);
 
-      throw new Error(`Failed to parse AI response. The AI did not call the generate_full_policy tool properly. Response: ${responseStr.substring(0, 500)}`);
+      throw new Error(
+        `Failed to parse AI response. The AI did not call the generate_full_policy tool properly.\n` +
+        `Response type: ${typeof response}\n` +
+        `Response: ${responseStr.substring(0, 500)}\n\n` +
+        `This may indicate:\n` +
+        `1. The model doesn't support tool calling\n` +
+        `2. The API configuration is incorrect\n` +
+        `3. The prompt needs to be simplified`
+      );
     }
   } catch (error) {
     console.error('Error generating full policy:', error);

@@ -12,6 +12,8 @@ const config: ForgeConfig = {
     appBundleId: 'com.speajus.rlsify',
     appCategoryType: 'public.app-category.developer-tools',
     asar: true,
+    prune: false,
+
   },
   rebuildConfig: {},
   makers: [

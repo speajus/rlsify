@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file rlsify/v1/schema.proto.
  */
 export const file_rlsify_v1_schema: GenFile = /*@__PURE__*/
-  fileDesc("ChZybHNpZnkvdjEvc2NoZW1hLnByb3RvEglybHNpZnkudjEimAEKCkNvbHVtbkluZm8SDAoEbmFtZRgBIAEoCRIMCgR0eXBlGAIgASgJEhAKCG51bGxhYmxlGAMgASgIEhoKDWRlZmF1bHRfdmFsdWUYBCABKAlIAIgBARIWCg5pc19wcmltYXJ5X2tleRgFIAEoCBIWCg5pc19mb3JlaWduX2tleRgGIAEoCEIQCg5fZGVmYXVsdF92YWx1ZSKgAQoSRm9yZWlnbktleVJlbGF0aW9uEhQKDHNvdXJjZV90YWJsZRgBIAEoCRIVCg1zb3VyY2VfY29sdW1uGAIgASgJEhQKDHRhcmdldF90YWJsZRgDIAEoCRIVCg10YXJnZXRfY29sdW1uGAQgASgJEhwKD2NvbnN0cmFpbnRfbmFtZRgFIAEoCUgAiAEBQhIKEF9jb25zdHJhaW50X25hbWUinAEKCVRhYmxlSW5mbxIOCgZzY2hlbWEYASABKAkSDAoEbmFtZRgCIAEoCRImCgdjb2x1bW5zGAMgAygLMhUucmxzaWZ5LnYxLkNvbHVtbkluZm8SMwoMZm9yZWlnbl9rZXlzGAQgAygLMh0ucmxzaWZ5LnYxLkZvcmVpZ25LZXlSZWxhdGlvbhIUCgxwcmltYXJ5X2tleXMYBSADKAkiZwoKU2NoZW1hSW5mbxIkCgZ0YWJsZXMYASADKAsyFC5ybHNpZnkudjEuVGFibGVJbmZvEjMKDGZvcmVpZ25fa2V5cxgCIAMoCzIdLnJsc2lmeS52MS5Gb3JlaWduS2V5UmVsYXRpb24iMgoQR2V0U2NoZW1hUmVxdWVzdBITCgZzY2hlbWEYASABKAlIAIgBAUIJCgdfc2NoZW1hIjoKEUdldFNjaGVtYVJlc3BvbnNlEiUKBnNjaGVtYRgBIAEoCzIVLnJsc2lmeS52MS5TY2hlbWFJbmZvIkUKD0dldFRhYmxlUmVxdWVzdBISCgp0YWJsZV9uYW1lGAEgASgJEhMKBnNjaGVtYRgCIAEoCUgAiAEBQgkKB19zY2hlbWEiNwoQR2V0VGFibGVSZXNwb25zZRIjCgV0YWJsZRgBIAEoCzIULnJsc2lmeS52MS5UYWJsZUluZm8iSwoVR2V0Rm9yZWlnbktleXNSZXF1ZXN0EhIKCnRhYmxlX25hbWUYASABKAkSEwoGc2NoZW1hGAIgASgJSACIAQFCCQoHX3NjaGVtYSJNChZHZXRGb3JlaWduS2V5c1Jlc3BvbnNlEjMKDGZvcmVpZ25fa2V5cxgBIAMoCzIdLnJsc2lmeS52MS5Gb3JlaWduS2V5UmVsYXRpb24y8wEKDVNjaGVtYVNlcnZpY2USRgoJR2V0U2NoZW1hEhsucmxzaWZ5LnYxLkdldFNjaGVtYVJlcXVlc3QaHC5ybHNpZnkudjEuR2V0U2NoZW1hUmVzcG9uc2USQwoIR2V0VGFibGUSGi5ybHNpZnkudjEuR2V0VGFibGVSZXF1ZXN0GhsucmxzaWZ5LnYxLkdldFRhYmxlUmVzcG9uc2USVQoOR2V0Rm9yZWlnbktleXMSIC5ybHNpZnkudjEuR2V0Rm9yZWlnbktleXNSZXF1ZXN0GiEucmxzaWZ5LnYxLkdldEZvcmVpZ25LZXlzUmVzcG9uc2ViBnByb3RvMw");
+  fileDesc("ChZybHNpZnkvdjEvc2NoZW1hLnByb3RvEglybHNpZnkudjEimAEKCkNvbHVtbkluZm8SDAoEbmFtZRgBIAEoCRIMCgR0eXBlGAIgASgJEhAKCG51bGxhYmxlGAMgASgIEhoKDWRlZmF1bHRfdmFsdWUYBCABKAlIAIgBARIWCg5pc19wcmltYXJ5X2tleRgFIAEoCBIWCg5pc19mb3JlaWduX2tleRgGIAEoCEIQCg5fZGVmYXVsdF92YWx1ZSKgAQoSRm9yZWlnbktleVJlbGF0aW9uEhQKDHNvdXJjZV90YWJsZRgBIAEoCRIVCg1zb3VyY2VfY29sdW1uGAIgASgJEhQKDHRhcmdldF90YWJsZRgDIAEoCRIVCg10YXJnZXRfY29sdW1uGAQgASgJEhwKD2NvbnN0cmFpbnRfbmFtZRgFIAEoCUgAiAEBQhIKEF9jb25zdHJhaW50X25hbWUinAEKCVRhYmxlSW5mbxIOCgZzY2hlbWEYASABKAkSDAoEbmFtZRgCIAEoCRImCgdjb2x1bW5zGAMgAygLMhUucmxzaWZ5LnYxLkNvbHVtbkluZm8SMwoMZm9yZWlnbl9rZXlzGAQgAygLMh0ucmxzaWZ5LnYxLkZvcmVpZ25LZXlSZWxhdGlvbhIUCgxwcmltYXJ5X2tleXMYBSADKAkiZwoKU2NoZW1hSW5mbxIkCgZ0YWJsZXMYASADKAsyFC5ybHNpZnkudjEuVGFibGVJbmZvEjMKDGZvcmVpZ25fa2V5cxgCIAMoCzIdLnJsc2lmeS52MS5Gb3JlaWduS2V5UmVsYXRpb24iMgoQR2V0U2NoZW1hUmVxdWVzdBITCgZzY2hlbWEYASABKAlIAIgBAUIJCgdfc2NoZW1hIjoKEUdldFNjaGVtYVJlc3BvbnNlEiUKBnNjaGVtYRgBIAEoCzIVLnJsc2lmeS52MS5TY2hlbWFJbmZvIkUKD0dldFRhYmxlUmVxdWVzdBISCgp0YWJsZV9uYW1lGAEgASgJEhMKBnNjaGVtYRgCIAEoCUgAiAEBQgkKB19zY2hlbWEiNwoQR2V0VGFibGVSZXNwb25zZRIjCgV0YWJsZRgBIAEoCzIULnJsc2lmeS52MS5UYWJsZUluZm8iSwoVR2V0Rm9yZWlnbktleXNSZXF1ZXN0EhIKCnRhYmxlX25hbWUYASABKAkSEwoGc2NoZW1hGAIgASgJSACIAQFCCQoHX3NjaGVtYSJNChZHZXRGb3JlaWduS2V5c1Jlc3BvbnNlEjMKDGZvcmVpZ25fa2V5cxgBIAMoCzIdLnJsc2lmeS52MS5Gb3JlaWduS2V5UmVsYXRpb24i4QEKE0dldFRhYmxlRGF0YVJlcXVlc3QSEgoKdGFibGVfbmFtZRgBIAEoCRITCgZzY2hlbWEYAiABKAlIAIgBARISCgVsaW1pdBgDIAEoBUgBiAEBEhMKBm9mZnNldBgEIAEoBUgCiAEBEhoKDWZpbHRlcl9jb2x1bW4YBSABKAlIA4gBARIZCgxmaWx0ZXJfdmFsdWUYBiABKAlIBIgBAUIJCgdfc2NoZW1hQggKBl9saW1pdEIJCgdfb2Zmc2V0QhAKDl9maWx0ZXJfY29sdW1uQg8KDV9maWx0ZXJfdmFsdWUiagoIVGFibGVSb3cSLwoGdmFsdWVzGAEgAygLMh8ucmxzaWZ5LnYxLlRhYmxlUm93LlZhbHVlc0VudHJ5Gi0KC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiTgoUR2V0VGFibGVEYXRhUmVzcG9uc2USIQoEcm93cxgBIAMoCzITLnJsc2lmeS52MS5UYWJsZVJvdxITCgt0b3RhbF9jb3VudBgCIAEoBTLEAgoNU2NoZW1hU2VydmljZRJGCglHZXRTY2hlbWESGy5ybHNpZnkudjEuR2V0U2NoZW1hUmVxdWVzdBocLnJsc2lmeS52MS5HZXRTY2hlbWFSZXNwb25zZRJDCghHZXRUYWJsZRIaLnJsc2lmeS52MS5HZXRUYWJsZVJlcXVlc3QaGy5ybHNpZnkudjEuR2V0VGFibGVSZXNwb25zZRJVCg5HZXRGb3JlaWduS2V5cxIgLnJsc2lmeS52MS5HZXRGb3JlaWduS2V5c1JlcXVlc3QaIS5ybHNpZnkudjEuR2V0Rm9yZWlnbktleXNSZXNwb25zZRJPCgxHZXRUYWJsZURhdGESHi5ybHNpZnkudjEuR2V0VGFibGVEYXRhUmVxdWVzdBofLnJsc2lmeS52MS5HZXRUYWJsZURhdGFSZXNwb25zZWIGcHJvdG8z");
 
 /**
  * Column information from database introspection
@@ -287,6 +287,103 @@ export const GetForeignKeysResponseSchema: GenMessage<GetForeignKeysResponse> = 
   messageDesc(file_rlsify_v1_schema, 9);
 
 /**
+ * Request to get table data (rows)
+ *
+ * @generated from message rlsify.v1.GetTableDataRequest
+ */
+export type GetTableDataRequest = Message<"rlsify.v1.GetTableDataRequest"> & {
+  /**
+   * @generated from field: string table_name = 1;
+   */
+  tableName: string;
+
+  /**
+   * @generated from field: optional string schema = 2;
+   */
+  schema?: string;
+
+  /**
+   * Default 10
+   *
+   * @generated from field: optional int32 limit = 3;
+   */
+  limit?: number;
+
+  /**
+   * Default 0
+   *
+   * @generated from field: optional int32 offset = 4;
+   */
+  offset?: number;
+
+  /**
+   * Optional column to filter
+   *
+   * @generated from field: optional string filter_column = 5;
+   */
+  filterColumn?: string;
+
+  /**
+   * Optional value to filter by
+   *
+   * @generated from field: optional string filter_value = 6;
+   */
+  filterValue?: string;
+};
+
+/**
+ * Describes the message rlsify.v1.GetTableDataRequest.
+ * Use `create(GetTableDataRequestSchema)` to create a new message.
+ */
+export const GetTableDataRequestSchema: GenMessage<GetTableDataRequest> = /*@__PURE__*/
+  messageDesc(file_rlsify_v1_schema, 10);
+
+/**
+ * A single row of table data
+ *
+ * @generated from message rlsify.v1.TableRow
+ */
+export type TableRow = Message<"rlsify.v1.TableRow"> & {
+  /**
+   * Map of column name to JSON-encoded value
+   *
+   * @generated from field: map<string, string> values = 1;
+   */
+  values: { [key: string]: string };
+};
+
+/**
+ * Describes the message rlsify.v1.TableRow.
+ * Use `create(TableRowSchema)` to create a new message.
+ */
+export const TableRowSchema: GenMessage<TableRow> = /*@__PURE__*/
+  messageDesc(file_rlsify_v1_schema, 11);
+
+/**
+ * Response with table data
+ *
+ * @generated from message rlsify.v1.GetTableDataResponse
+ */
+export type GetTableDataResponse = Message<"rlsify.v1.GetTableDataResponse"> & {
+  /**
+   * @generated from field: repeated rlsify.v1.TableRow rows = 1;
+   */
+  rows: TableRow[];
+
+  /**
+   * @generated from field: int32 total_count = 2;
+   */
+  totalCount: number;
+};
+
+/**
+ * Describes the message rlsify.v1.GetTableDataResponse.
+ * Use `create(GetTableDataResponseSchema)` to create a new message.
+ */
+export const GetTableDataResponseSchema: GenMessage<GetTableDataResponse> = /*@__PURE__*/
+  messageDesc(file_rlsify_v1_schema, 12);
+
+/**
  * Schema introspection service
  *
  * @generated from service rlsify.v1.SchemaService
@@ -321,6 +418,16 @@ export const SchemaService: GenService<{
     methodKind: "unary";
     input: typeof GetForeignKeysRequestSchema;
     output: typeof GetForeignKeysResponseSchema;
+  },
+  /**
+   * Get table data (rows) with optional filtering
+   *
+   * @generated from rpc rlsify.v1.SchemaService.GetTableData
+   */
+  getTableData: {
+    methodKind: "unary";
+    input: typeof GetTableDataRequestSchema;
+    output: typeof GetTableDataResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_rlsify_v1_schema, 0);

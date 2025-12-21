@@ -1,6 +1,6 @@
-import './app.css';
+import './lib/app.css';
 import { mount } from 'svelte';
-import App from './App.svelte';
+import App from './lib/App.svelte';
 import { createContainer } from '@speajus/diblob';
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { configureClients } from '$lib/api/client.js';

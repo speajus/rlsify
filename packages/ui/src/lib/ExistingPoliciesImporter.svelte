@@ -1,19 +1,32 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { existingPolicies, fetchExistingPolicies, importExistingPolicy, policyLoading, policyError } from './stores/policy-store.js';
+	  import { existingPolicies, fetchExistingPolicies, importExistingPolicy, policyLoading, policyError } from './stores/policy-store.js';
+	  import { connected } from './stores/connection-store.js';
   import type { ExistingRLSPolicy } from '@speajus/rlsify-types';
   import { Button } from './components/ui/button/index.js';
 
   let schema = $state('public');
   let tableFilter = $state('');
   let selectedPolicy = $state<ExistingRLSPolicy | null>(null);
+	  let didInitialLoad = $state(false);
 
-  onMount(() => {
-    fetchExistingPolicies(schema);
-  });
+	  // Only load existing policies after a DB connection is established.
+	  // This component is mounted in the desktop app even when the UI is "collapsed",
+	  // so an unconditional fetch would spam IPC unary calls before connecting.
+	  $effect(() => {
+	    if (!$connected) {
+	      didInitialLoad = false;
+	      return;
+	    }
+
+	    if (!didInitialLoad) {
+	      didInitialLoad = true;
+	      fetchExistingPolicies(schema);
+	    }
+	  });
 
   function handleRefresh() {
-    fetchExistingPolicies(schema, tableFilter || undefined);
+	    if (!$connected) return;
+	    fetchExistingPolicies(schema, tableFilter || undefined);
   }
 
   function handleImport(policy: ExistingRLSPolicy) {
@@ -49,7 +62,7 @@
         Table:
         <input type="text" bind:value={tableFilter} placeholder="All tables" class="filter-input" />
       </label>
-      <Button onclick={handleRefresh} disabled={$policyLoading}>
+	      <Button onclick={handleRefresh} disabled={$policyLoading || !$connected}>
         {$policyLoading ? 'Loading...' : 'Refresh'}
       </Button>
     </div>
@@ -64,8 +77,10 @@
       <div class="empty-state">
         {#if $policyLoading}
           Loading policies...
-        {:else}
-          No RLS policies found. Make sure Docker is running and the database has policies.
+	        {:else if !$connected}
+	          Connect to a database to list existing RLS policies.
+	        {:else}
+	          No RLS policies found. Make sure the database has policies.
         {/if}
       </div>
     {:else}

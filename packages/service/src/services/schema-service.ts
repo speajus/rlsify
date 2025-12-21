@@ -10,6 +10,8 @@ import {
   GetSchemaResponseSchema,
   GetTableResponseSchema,
   GetForeignKeysResponseSchema,
+  GetTableDataResponseSchema,
+  TableRowSchema,
   SchemaInfoSchema,
   TableInfoSchema,
   ColumnInfoSchema,
@@ -17,6 +19,7 @@ import {
   type GetSchemaRequest,
   type GetTableRequest,
   type GetForeignKeysRequest,
+  type GetTableDataRequest,
 } from '@speajus/rlsify-types';
 
 export class SchemaServiceImpl implements ServiceImpl<typeof SchemaServiceProto> {
@@ -214,6 +217,71 @@ export class SchemaServiceImpl implements ServiceImpl<typeof SchemaServiceProto>
       columns,
       primaryKeys,
       foreignKeys: [], // Will be populated at schema level
+    });
+  }
+
+  async getTableData(request: GetTableDataRequest) {
+    const schemaName = request.schema ?? 'public';
+    const tableName = request.tableName;
+    const limit = request.limit ?? 10;
+    const offset = request.offset ?? 0;
+
+    // Get table info to find primary keys for ordering
+    const tableInfo = await this.fetchTableInfo(schemaName, tableName);
+    const primaryKeys = tableInfo.primaryKeys;
+
+    // Build ORDER BY clause - use primary keys if available, otherwise use first column
+    let orderByClause = '';
+    if (primaryKeys.length > 0) {
+      orderByClause = `ORDER BY ${primaryKeys.map(pk => `"${pk}" DESC`).join(', ')}`;
+    } else if (tableInfo.columns.length > 0 && tableInfo.columns[0]) {
+      orderByClause = `ORDER BY "${tableInfo.columns[0].name}" DESC`;
+    }
+
+    // Build WHERE clause if filter is provided
+    let whereClause = '';
+    const params: any[] = [limit, offset];
+    if (request.filterColumn && request.filterValue !== undefined) {
+      whereClause = `WHERE "${request.filterColumn}"::text ILIKE $3`;
+      params.push(`%${request.filterValue}%`);
+    }
+
+    // Query the data
+    const dataQuery = `
+      SELECT *
+      FROM "${schemaName}"."${tableName}"
+      ${whereClause}
+      ${orderByClause}
+      LIMIT $1 OFFSET $2
+    `;
+
+    const dataResult = await this.pool.query(dataQuery, params);
+
+    // Get total count
+    const countQuery = `
+      SELECT COUNT(*) as count
+      FROM "${schemaName}"."${tableName}"
+      ${whereClause}
+    `;
+    const countParams = request.filterColumn && request.filterValue !== undefined
+      ? [`%${request.filterValue}%`]
+      : [];
+    const countResult = await this.pool.query(countQuery, countParams);
+    const totalCount = parseInt(countResult.rows[0].count, 10);
+
+    // Convert rows to TableRow format
+    const rows = dataResult.rows.map(row => {
+      const values: { [key: string]: string } = {};
+      for (const [key, value] of Object.entries(row)) {
+        // Convert value to JSON string
+        values[key] = JSON.stringify(value);
+      }
+      return create(TableRowSchema, { values });
+    });
+
+    return create(GetTableDataResponseSchema, {
+      rows,
+      totalCount,
     });
   }
 }

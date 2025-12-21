@@ -70,6 +70,12 @@ importers:
       '@connectrpc/connect':
         specifier: ^2.0.0
         version: 2.1.1(@bufbuild/protobuf@2.10.2)
+      '@connectrpc/connect-web':
+        specifier: ^2.1.0
+        version: 2.1.1(@bufbuild/protobuf@2.10.2)(@connectrpc/connect@2.1.1(@bufbuild/protobuf@2.10.2))
+      '@internationalized/date':
+        specifier: ^3.6.0
+        version: 3.10.0
       '@speajus/diblob':
         specifier: ^1.0.2
         version: 1.0.2
@@ -91,18 +97,48 @@ importers:
       '@speajus/rlsify-types':
         specifier: workspace:*
         version: link:../types
+      '@speajus/rlsify-ui':
+        specifier: workspace:*
+        version: link:../ui
+      bits-ui:
+        specifier: ^2.14.4
+        version: 2.14.4(@internationalized/date@3.10.0)(svelte@5.46.0)
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
       electron-store:
         specifier: ^11.0.2
         version: 11.0.2
+      esm-env:
+        specifier: ^1.2.1
+        version: 1.2.2
       lucide-svelte:
         specifier: ^0.460.0
         version: 0.460.1(svelte@5.46.0)
       pg:
         specifier: ^8.15.0
         version: 8.16.3
+      runed:
+        specifier: ^0.15.0
+        version: 0.15.4(svelte@5.46.0)
+      style-to-object:
+        specifier: ^1.0.8
+        version: 1.0.14
       svelte:
         specifier: ^5.46.0
         version: 5.46.0
+      svelte-jsoneditor:
+        specifier: ^3.11.0
+        version: 3.11.0(svelte@5.46.0)
+      tabbable:
+        specifier: ^6.2.0
+        version: 6.3.0
+      tailwind-merge:
+        specifier: ^3.4.0
+        version: 3.4.0
+      tailwind-variants:
+        specifier: ^3.2.2
+        version: 3.2.2(tailwind-merge@3.4.0)(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))
     devDependencies:
       '@electron-forge/cli':
         specifier: ^7.0.0
@@ -217,6 +253,9 @@ importers:
       '@types/pg':
         specifier: ^8.11.10
         version: 8.16.0
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(@swc/core@1.15.7(@swc/helpers@0.5.17))(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
@@ -226,6 +265,9 @@ importers:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.27)(sass@1.97.0)(terser@5.44.1)
 
   packages/supabase:
     dependencies:
@@ -5626,6 +5668,11 @@ packages:
 
   run-parallel@1.2.0:
     resolution: {integrity: sha512-5l4VyZR86LZ/lDxZTR6jqL8AFE2S0IFLMP26AbjsLVADxHdhB/c0GUsH+y39UfCi3dzz8OlQuPmnaJOMoDHQBA==}
+
+  runed@0.15.4:
+    resolution: {integrity: sha512-kmbpstUd7v2FdlBM+MT78IyuOVd38tq/e7MHvVb0fnVCsPSPMD/m2Xh+wUhzg9qCJgxRjBbIKu68DlH/x5VXJA==}
+    peerDependencies:
+      svelte: ^5.0.0-next.1
 
   runed@0.35.1:
     resolution: {integrity: sha512-2F4Q/FZzbeJTFdIS/PuOoPRSm92sA2LhzTnv6FXhCoENb3huf5+fDuNOg1LNvGOouy3u/225qxmuJvcV3IZK5Q==}
@@ -12882,6 +12929,11 @@ snapshots:
   run-parallel@1.2.0:
     dependencies:
       queue-microtask: 1.2.3
+
+  runed@0.15.4(svelte@5.46.0):
+    dependencies:
+      esm-env: 1.2.2
+      svelte: 5.46.0
 
   runed@0.35.1(svelte@5.46.0):
     dependencies:
