@@ -1,38 +1,68 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { generateFullPolicy, type GenerateFullPolicyOptions } from './auggie-service.js';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
+import type { GenerateFullPolicyOptions } from './auggie-service.js';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
 // Load .env from repository root
 dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
 
-describe('Auggie Service Integration Tests', () => {
+// These tests hit the real Auggie API and can be flaky depending on model/tooling behavior.
+// Opt-in only.
+const shouldRun = process.env.RUN_AUGGIE_INTEGRATION_TESTS === 'true';
+const describeIf = shouldRun ? describe : describe.skip;
+
+describeIf('Auggie Service Integration Tests', () => {
   let apiKey: string;
+		  let apiUrl: string | undefined;
+  let generateFullPolicy: typeof import('./auggie-service.js').generateFullPolicy;
 
-  beforeAll(() => {
-    // Parse the TOKEN from .env
-    const tokenStr = process.env.TOKEN;
-    if (!tokenStr) {
-      throw new Error('TOKEN not found in .env file');
-    }
+  beforeAll(async () => {
+    // Ensure unit-test mocks do not affect integration tests.
+    vi.unmock('@augmentcode/auggie-sdk');
+    vi.resetModules();
 
-    try {
-      const tokenData = JSON.parse(tokenStr);
-      apiKey = tokenData.accessToken;
-      
-      if (!apiKey) {
-        throw new Error('accessToken not found in TOKEN');
-      }
+    // Lazy import so unit tests can mock @augmentcode/auggie-sdk without module cache interference.
+    ({ generateFullPolicy } = await import('./auggie-service.js'));
 
-      console.log('Using API key from .env:', apiKey.substring(0, 10) + '...');
-    } catch (error) {
-      throw new Error(`Failed to parse TOKEN from .env: ${error}`);
-    }
+		// Prefer explicit env vars (useful for CI), otherwise fall back to TOKEN JSON (used by the app UI).
+		const envApiKey = process.env.AUGMENT_API_TOKEN;
+		const envApiUrl = process.env.AUGMENT_API_URL;
+
+		if (envApiKey) {
+			apiKey = envApiKey;
+			apiUrl = envApiUrl;
+			return;
+		}
+
+		const tokenStr = process.env.TOKEN;
+		if (!tokenStr) {
+			throw new Error(
+				'No Auggie credentials found. Set AUGMENT_API_TOKEN + AUGMENT_API_URL, or set TOKEN in .env as JSON with { accessToken, tenantURL }.'
+			);
+		}
+
+		try {
+			const tokenData = JSON.parse(tokenStr);
+			apiKey = tokenData.accessToken;
+			apiUrl =
+				process.env.AUGMENT_API_URL ||
+				tokenData.apiUrl ||
+				tokenData.tenantURL ||
+				tokenData.tenantUrl;
+
+			if (!apiKey) throw new Error('accessToken not found in TOKEN');
+			// Ensure downstream code that reads env vars sees consistent values.
+			process.env.AUGMENT_API_TOKEN = apiKey;
+			if (apiUrl) process.env.AUGMENT_API_URL = apiUrl;
+		} catch (error) {
+			throw new Error(`Failed to parse TOKEN from .env: ${error}`);
+		}
   });
 
   it('should generate a simple SELECT policy for users viewing their own posts', async () => {
     const options: GenerateFullPolicyOptions = {
       apiKey,
+			...(apiUrl ? { apiUrl } : {}),
       prompt: 'Users can only view their own posts',
       tableName: 'posts',
       tableSchema: {
@@ -58,7 +88,11 @@ describe('Auggie Service Integration Tests', () => {
     expect(result.policies).toBeDefined();
     expect(result.policies.length).toBeGreaterThan(0);
     
-    const policy = result.policies[0];
+	    const policy = result.policies[0];
+	    expect(policy).toBeDefined();
+	    if (!policy) {
+	      throw new Error('Expected at least one generated policy.');
+	    }
     expect(policy.name).toBeDefined();
     expect(policy.command).toContain('SELECT');
     expect(policy.description).toBeDefined();
@@ -69,6 +103,7 @@ describe('Auggie Service Integration Tests', () => {
   it('should generate CRUD policies for a posts table', async () => {
     const options: GenerateFullPolicyOptions = {
       apiKey,
+			...(apiUrl ? { apiUrl } : {}),
       prompt: 'Authenticated users can create, read, update, and delete their own posts',
       tableName: 'posts',
       tableSchema: {
@@ -105,6 +140,7 @@ describe('Auggie Service Integration Tests', () => {
   it('should generate admin policy with different permissions', async () => {
     const options: GenerateFullPolicyOptions = {
       apiKey,
+			...(apiUrl ? { apiUrl } : {}),
       prompt: 'Admin users can view and delete any post, regular users can only view their own',
       tableName: 'posts',
       tableSchema: {

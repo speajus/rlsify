@@ -20,7 +20,7 @@ export { TemplateRegistry } from './templates/template-registry.js';
 export * from './templates/index.js';
 
 // Export DI container setup
-export { createContainer } from './container.js';
+export { registerCore as createContainer } from './container.js';
 export * from './container.js';
 
 // Export utilities

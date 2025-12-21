@@ -31,8 +31,9 @@ export interface DatabaseConfig {
 // Infrastructure Blobs
 // ============================================================================
 
-export const databasePoolBlob = createBlob<PgPool>('DatabasePool');
-
+export const pool = createBlob<PgPool>('DatabasePool');
+export const dbConfig = createBlob<DatabaseConfig>('DatabaseConfig');
+export const policyValidator = createBlob<PolicyValidator>('PolicyValidator');
 // ============================================================================
 // Container Factory
 // ============================================================================
@@ -44,28 +45,21 @@ export const databasePoolBlob = createBlob<PgPool>('DatabasePool');
  *
  * @param dbConfig - Database connection configuration from user input
  */
-export function createDesktopContainer(dbConfig: DatabaseConfig): {
-  container: ReturnType<typeof createDiblobContainer>;
-  config: DatabaseConfig;
-  policyValidator: PolicyValidator;
-} {
-  const container = createDiblobContainer();
+export function registerDatabaseConfig( config: DatabaseConfig, container = createDiblobContainer()) {
+  container.register(dbConfig, () => ({
+    host: config.host,
+    port: config.port,
+    database: config.database,
+    user: config.user,
+    password: config.password,
+    ssl: config.ssl ?? false,
+  }));
 
   // Register database pool with the provided configuration
   // Construct the Pool config explicitly to ensure proper types
-  container.register(databasePoolBlob, Pool, {
-    host: dbConfig.host,
-    port: dbConfig.port,
-    database: dbConfig.database,
-    user: dbConfig.user,
-    password: dbConfig.password,
-    ssl: dbConfig.ssl ? { rejectUnauthorized: false } : undefined,
-  });
+  container.register(pool, Pool, dbConfig);
+  container.register(policyValidator, PolicyValidator, new JoinResolver());
 
-  // Create core service dependencies directly (avoid diblob version mismatch)
-  const joinResolver = new JoinResolver();
-  const policyValidator = new PolicyValidator(joinResolver);
-
-  return { container, config: dbConfig, policyValidator };
+  return container;
 }
 

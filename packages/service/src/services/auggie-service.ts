@@ -6,8 +6,71 @@
  */
 
 import { Auggie } from '@augmentcode/auggie-sdk';
-import { tool } from 'ai';
+import { tool, zodSchema } from 'ai';
 import { z } from 'zod';
+
+type ToolCallSnapshot = {
+  toolCallId: string;
+  title?: string;
+  status?: string;
+  kind?: string;
+  rawInput?: unknown;
+  rawOutput?: unknown;
+};
+
+const generatePolicyToolArgsSchema = z.object({
+  expression: z
+    .record(z.string(), z.unknown())
+    .describe(
+      'The complete PermissionExpression JSON object with operators like _eq, _and, _or, _exists, _session_var, _column, etc. This must be a valid JSON object, not a string.'
+    ),
+  explanation: z
+    .string()
+    .describe(
+      'Clear explanation of what this policy does, which conditions it checks, and how the access control works'
+    ),
+});
+
+const generateFullPolicyToolArgsSchema = z
+  .object({
+    name: z
+      .string()
+      .describe('Policy name following convention: {table}_{command}_{purpose}, e.g., users_select_own'),
+    command: z
+      .array(z.enum(['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'ALL']))
+      .describe('SQL command(s) this policy applies to'),
+    description: z
+      .string()
+      .describe('Human-readable explanation of what this policy does'),
+    roles: z
+      .array(z.string())
+      .optional()
+      .describe('PostgreSQL roles this policy applies to (e.g., authenticated, public)'),
+
+    // NOTE: INSERT policies do not use a USING clause, but our wire format expects a `usingExpression`.
+    // To avoid tool-call validation failures (and subsequent plain-text fallbacks), we allow it to be
+    // omitted and default it later to `{}` for INSERT-only policies.
+    usingExpression: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe('JSON expression for USING clause (for SELECT, UPDATE, DELETE). Use {} for INSERT-only.'),
+    withCheckExpression: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe('JSON expression for WITH CHECK clause (for INSERT, UPDATE)'),
+  })
+  .superRefine((value, ctx) => {
+    const cmd = Array.isArray(value.command) ? value.command : [];
+    const needsUsing = cmd.some((c) => c === 'SELECT' || c === 'UPDATE' || c === 'DELETE' || c === 'ALL');
+
+    if (needsUsing && !value.usingExpression) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['usingExpression'],
+        message: 'usingExpression is required for SELECT/UPDATE/DELETE/ALL policies',
+      });
+    }
+  });
 
 // ============================================================================
 // Custom Tools for Auggie
@@ -50,11 +113,8 @@ const generatePolicyTool = tool({
   Call this tool with:
   - expression: The complete PermissionExpression JSON object (not a string)
   - explanation: Clear explanation of what the policy does`,
-  parameters: z.object({
-    expression: z.record(z.any()).describe('The complete PermissionExpression JSON object with operators like _eq, _and, _or, _exists, _session_var, _column, etc. This must be a valid JSON object, not a string.'),
-    explanation: z.string().describe('Clear explanation of what this policy does, which conditions it checks, and how the access control works'),
-  }),
-  execute: async ({ expression, explanation }) => {
+  inputSchema: zodSchema(generatePolicyToolArgsSchema),
+  execute: async ({ expression, explanation }: z.infer<typeof generatePolicyToolArgsSchema>) => {
     // Store the result so we can return it from generatePolicyExpression
     return JSON.stringify({ expression, explanation }, null, 2);
   },
@@ -77,19 +137,11 @@ const generateFullPolicyTool = tool({
   - Complete USING and WITH CHECK expressions
 
   Call this tool with all fields populated based on the user's natural language request.`,
-  parameters: z.object({
-    name: z.string().describe('Policy name following convention: {table}_{command}_{purpose}, e.g., users_select_own'),
-    command: z.array(z.enum(['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'ALL']))
-      .describe('SQL command(s) this policy applies to'),
-    description: z.string().describe('Human-readable explanation of what this policy does'),
-    roles: z.array(z.string()).optional()
-      .describe('PostgreSQL roles this policy applies to (e.g., authenticated, public)'),
-    usingExpression: z.record(z.string(), z.any())
-      .describe('JSON expression for USING clause (for SELECT, UPDATE, DELETE)'),
-    withCheckExpression: z.record(z.string(), z.any()).optional()
-      .describe('JSON expression for WITH CHECK clause (for INSERT, UPDATE)'),
-  }),
-  execute: async (input) => JSON.stringify(input, null, 2),
+  inputSchema: zodSchema(generateFullPolicyToolArgsSchema),
+  execute: async (input: z.infer<typeof generateFullPolicyToolArgsSchema>) => {
+    // Keep the tool output structured so it can be parsed from the model response.
+    return JSON.stringify(input, null, 2);
+  },
 });
 
 /**
@@ -97,7 +149,8 @@ const generateFullPolicyTool = tool({
  */
 const generateTestTool = tool({
   description: 'Generate a test case for an RLS policy',
-  parameters: z.object({
+  inputSchema: zodSchema(
+    z.object({
     testName: z.string().describe('Descriptive name for the test'),
     description: z.string().optional().describe('What this test validates'),
     userId: z.string().describe('User ID for the test context'),
@@ -106,19 +159,28 @@ const generateTestTool = tool({
     operation: z.enum(['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'ALL']).describe('SQL operation to test'),
     expectedResult: z.enum(['allowed', 'denied']).describe('Expected test outcome'),
     testData: z.record(z.string(), z.any()).optional().describe('Row data for the test'),
-  }),
-  execute: async (input) => JSON.stringify(input, null, 2),
+    })
+  ),
+  execute: async (input: unknown) => JSON.stringify(input, null, 2),
 });
 
 // ============================================================================
 // Auggie Client Management
 // ============================================================================
 
+export type AuggieModel = 'haiku4.5' | 'sonnet4.5' | 'sonnet4' | 'gpt5';
+
 export interface AuggieConfig {
   apiKey: string;
   apiUrl?: string; // Optional tenant URL
-  model?: string;
+  model?: AuggieModel;
   forceToolUse?: boolean; // Force the AI to use tools
+
+  /**
+   * Limit which tools are exposed to the model.
+   * This helps avoid cases where the model calls the wrong tool and then produces no text.
+   */
+  enabledTools?: Array<'generate_rls_policy' | 'generate_full_policy' | 'generate_policy_test'>;
 }
 
 /**
@@ -127,55 +189,396 @@ export interface AuggieConfig {
 async function createAuggieClient(config: AuggieConfig): Promise<Auggie> {
   // Set environment variables for Auggie SDK
   // The SDK reads AUGMENT_API_TOKEN and AUGMENT_API_URL from env
-  const originalToken = process.env.AUGMENT_API_TOKEN;
-  const originalUrl = process.env.AUGMENT_API_URL;
+  // Prefer explicit config over environment variables.
+  // This matters for callers (UI/desktop/tests) that pass per-request tokens/tenant URLs.
+  const apiKey = config.apiKey ?? process.env.AUGMENT_API_TOKEN;
+  const apiUrl = config.apiUrl ?? process.env.AUGMENT_API_URL;
 
-  try {
-    // Set the token and URL as environment variables
-    process.env.AUGMENT_API_TOKEN = config.apiKey;
-    if (config.apiUrl) {
-      process.env.AUGMENT_API_URL = config.apiUrl;
-    }
+  if (!apiKey) {
+    throw new Error('Auggie SDK requires an API key. Provide `apiKey` or set AUGMENT_API_TOKEN.');
+  }
 
-    const clientConfig: any = {
-      tools: {
-        generate_rls_policy: generatePolicyTool,
-        generate_full_policy: generateFullPolicyTool,
-        generate_policy_test: generateTestTool,
-      },
-      // Force tool use if requested, otherwise let AI decide
-      toolChoice: config.forceToolUse ? 'required' : 'auto',
+  const availableTools = {
+    generate_rls_policy: generatePolicyTool,
+    generate_full_policy: generateFullPolicyTool,
+    generate_policy_test: generateTestTool,
+  } as const;
+
+  const enabledToolNames = (config.enabledTools?.length
+    ? config.enabledTools
+    : (Object.keys(availableTools) as Array<keyof typeof availableTools>)) as Array<
+    keyof typeof availableTools
+  >;
+
+  const tools = Object.fromEntries(
+    enabledToolNames
+      .map((name) => {
+        const tool = availableTools[name];
+        return tool ? [name, tool] : null;
+      })
+      .filter(Boolean) as Array<[string, any]>
+  );
+
+  const clientConfig = {
+    tools,
+    apiKey,
+    ...(apiUrl ? { apiUrl } : {}),
+    model: config.model ?? 'sonnet4.5',
+  };
+
+  // Avoid logging secrets. Log only non-sensitive info.
+  console.log('Creating Auggie client with config:', {
+    hasApiKey: Boolean(apiKey),
+    apiUrl: apiUrl ?? '(default)',
+    model: clientConfig.model,
+    toolNames: Object.keys(clientConfig.tools ?? {}),
+  });
+
+  const client = await Auggie.create(clientConfig);
+  return client;
+}
+
+function createToolCallCollector(client: Auggie): {
+  stop: () => void;
+  list: () => ToolCallSnapshot[];
+  waitForIdle: (options?: { idleMs?: number; timeoutMs?: number }) => Promise<void>;
+} {
+  const toolCallsById = new Map<string, ToolCallSnapshot>();
+  let active = true;
+  let updateCount = 0;
+  let lastUpdateAt = 0;
+
+  client.onSessionUpdate((notification: any) => {
+    if (!active) return;
+
+    const update = notification?.update;
+    if (!update) return;
+
+    if (update.sessionUpdate !== 'tool_call' && update.sessionUpdate !== 'tool_call_update') return;
+    if (!update.toolCallId) return;
+
+    updateCount += 1;
+    lastUpdateAt = Date.now();
+
+    const existing = toolCallsById.get(update.toolCallId) ?? {
+      toolCallId: update.toolCallId,
     };
 
-    // Only add model if explicitly provided
-    if (config.model) {
-      clientConfig.model = config.model;
-    }
+    const next: ToolCallSnapshot = { ...existing };
+    if (typeof update.title === 'string') next.title = update.title;
+    if (typeof update.status === 'string') next.status = update.status;
+    if (typeof update.kind === 'string') next.kind = update.kind;
+    if (update.rawInput !== undefined) next.rawInput = update.rawInput;
+    if (update.rawOutput !== undefined) next.rawOutput = update.rawOutput;
 
-    console.log('Creating Auggie client with config:', {
-      AUGMENT_API_TOKEN: '***',
-      AUGMENT_API_URL: process.env.AUGMENT_API_URL,
-      model: config.model || 'default',
-      toolChoice: clientConfig.toolChoice,
-      tools: Object.keys(clientConfig.tools),
-    });
+    toolCallsById.set(update.toolCallId, next);
+  });
 
-    const client = await Auggie.create(clientConfig);
+  return {
+    stop: () => {
+      active = false;
+    },
+    list: () => Array.from(toolCallsById.values()),
+    waitForIdle: async (options) => {
+      const idleMs = Math.max(0, options?.idleMs ?? 15);
+      const timeoutMs = Math.max(idleMs, options?.timeoutMs ?? 250);
 
-    return client;
-  } finally {
-    // Restore original environment variables
-    if (originalToken !== undefined) {
-      process.env.AUGMENT_API_TOKEN = originalToken;
-    } else {
-      delete process.env.AUGMENT_API_TOKEN;
-    }
-    if (originalUrl !== undefined) {
-      process.env.AUGMENT_API_URL = originalUrl;
-    } else {
-      delete process.env.AUGMENT_API_URL;
+      // Even if we haven't seen updates yet, give a short grace period for the first tool-call
+      // notification to arrive after prompt() resolves.
+      const start = Date.now();
+      const initialGraceMs = Math.min(timeoutMs, Math.max(idleMs, 25));
+
+      // Wait until either:
+      // 1) we receive *no* tool-call updates for `initialGraceMs` (nothing to collect), or
+      // 2) after we've seen updates, we haven't received any for `idleMs`, or
+      // 3) `timeoutMs` elapses.
+      while (Date.now() - start < timeoutMs) {
+        if (updateCount === 0) {
+          if (Date.now() - start >= initialGraceMs) return;
+        } else {
+          const sinceLast = Date.now() - lastUpdateAt;
+          if (sinceLast >= idleMs) return;
+        }
+
+        await new Promise<void>((resolve) => setTimeout(resolve, idleMs));
+      }
+    },
+  };
+}
+
+function normalizeIdentifier(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function normalizeCommandList(commands: unknown): Array<'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'ALL'> {
+  const list = Array.isArray(commands) ? commands : commands != null ? [commands] : [];
+  const normalized = list
+    .map((c) => (typeof c === 'string' ? c.toUpperCase().trim() : ''))
+    .filter(Boolean);
+  const allowed = new Set(['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'ALL']);
+  const filtered = normalized.filter((c) => allowed.has(c));
+  return (filtered.length > 0 ? filtered : ['SELECT']) as Array<
+    'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'ALL'
+  >;
+}
+
+function ensurePolicyNameConvention(params: {
+  name: unknown;
+  tableName: string;
+  command: Array<'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'ALL'>;
+  fallbackPurpose: string;
+}): string {
+  const table = normalizeIdentifier(params.tableName);
+  const cmd = normalizeIdentifier(params.command[0] ?? 'select');
+
+  const inferKnownPurposeFromText = (text: string): string => {
+    const lower = text.toLowerCase();
+    // Keep this intentionally small and predictable — naming convention prefers short purposes.
+    if (/(\btheir\s+own\b|\byour\s+own\b|\bown\b)/.test(lower)) return 'own';
+    if (/\badmin\b/.test(lower)) return 'admin';
+    if (/(\bauthenticated\b|\blogged\s*in\b|\bsigned\s*in\b)/.test(lower)) return 'authenticated';
+    if (/(\bpublic\b|\banon\b|\banonymous\b|\bunauthenticated\b)/.test(lower)) return 'public';
+    if (/(\bservice\b|\bservice_role\b)/.test(lower)) return 'service';
+    return '';
+  };
+
+  const normalizePurposeToken = (text: string): string => {
+    const normalized = normalizeIdentifier(text);
+    if (!normalized) return '';
+
+    // Purposes can be arbitrary, but keep them reasonably sized to avoid gigantic identifiers.
+    const tokens = normalized.split('_').filter(Boolean);
+    const limited = tokens.slice(0, 6).join('_');
+    return limited.length > 60 ? limited.slice(0, 60) : limited;
+  };
+
+  const fallbackPurpose =
+    inferKnownPurposeFromText(params.fallbackPurpose) || normalizePurposeToken(params.fallbackPurpose) || 'policy';
+
+  const rawName = typeof params.name === 'string' ? params.name : '';
+  const normalizedName = normalizeIdentifier(rawName);
+
+  // Enforce {table}_{command}_{purpose}. If it already matches the prefix, keep it.
+  const requiredPrefix = `${table}_${cmd}_`;
+  if (normalizedName.startsWith(requiredPrefix) && normalizedName.length > requiredPrefix.length) {
+    return normalizedName;
+  }
+
+  // If the model produced a non-conforming name, try to salvage a reasonable purpose token.
+  // e.g., "select_posts_own" -> purpose "own".
+  const purposeFromName = (() => {
+    if (!normalizedName) return '';
+    const parts = normalizedName.split('_').filter(Boolean);
+    const last = parts[parts.length - 1] ?? '';
+    if (!last) return '';
+
+    // Avoid choosing table/command as purpose.
+    if (last === table || last === cmd) return '';
+
+    // Allow arbitrary purposes; normalize/truncate to keep identifiers manageable.
+    return normalizePurposeToken(last);
+  })();
+
+  const purpose = purposeFromName || fallbackPurpose;
+
+  return `${table}_${cmd}_${purpose}`;
+}
+
+function extractJsonValuesFromText(text: string): unknown[] {
+  // Extract balanced JSON substrings (objects/arrays) and parse them.
+  // Handles nested braces and ignores braces inside JSON strings.
+  const results: unknown[] = [];
+  const seen = new Set<string>();
+
+  const openToClose: Record<string, string> = { '{': '}', '[': ']' };
+  const closeSet = new Set(['}', ']']);
+
+  for (let start = 0; start < text.length; start++) {
+    const ch = text.charAt(start);
+    if (ch !== '{' && ch !== '[') continue;
+
+    const stack: string[] = [ch];
+    let inString = false;
+    let escaped = false;
+
+    for (let i = start + 1; i < text.length; i++) {
+      const c = text.charAt(i);
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (c === '\\') {
+          escaped = true;
+          continue;
+        }
+        if (c === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (c === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (c === '{' || c === '[') {
+        stack.push(c);
+        continue;
+      }
+
+      if (closeSet.has(c)) {
+        const open = stack[stack.length - 1];
+        if (!open) break;
+        const expectedClose = openToClose[open];
+        if (c !== expectedClose) {
+          // Not valid JSON for this start.
+          break;
+        }
+        stack.pop();
+        if (stack.length === 0) {
+          const candidate = text.slice(start, i + 1);
+          if (!seen.has(candidate)) {
+            seen.add(candidate);
+            try {
+              results.push(JSON.parse(candidate));
+            } catch {
+              // ignore
+            }
+          }
+          break;
+        }
+      }
     }
   }
+
+  return results;
+}
+
+function tryParseFullPoliciesFromUnknown(
+  input: unknown,
+  options: Pick<GenerateFullPolicyOptions, 'tableName' | 'prompt'>
+): Array<z.infer<typeof generateFullPolicyToolArgsSchema>> | null {
+  const candidates = Array.isArray(input) ? input : [input];
+  const parsedPolicies: Array<z.infer<typeof generateFullPolicyToolArgsSchema>> = [];
+
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const c: any = candidate;
+    const command = normalizeCommandList(c.command);
+
+    const coerced: any = {
+      ...c,
+      command,
+      roles: Array.isArray(c.roles) ? c.roles : c.roles ? [c.roles] : c.roles,
+    };
+    coerced.name = ensurePolicyNameConvention({
+      name: coerced.name,
+      tableName: options.tableName,
+      command,
+      fallbackPurpose: coerced.description || options.prompt,
+    });
+
+    const parsed = generateFullPolicyToolArgsSchema.safeParse(coerced);
+    if (parsed.success) parsedPolicies.push(parsed.data);
+  }
+
+  return parsedPolicies.length > 0 ? parsedPolicies : null;
+}
+
+function tryParseFullPoliciesFromTextResponse(
+  responseStr: string,
+  options: Pick<GenerateFullPolicyOptions, 'tableName' | 'prompt'>
+): GenerateFullPolicyResult | null {
+  const trimmed = responseStr.trim();
+
+  // 1) Strict JSON response
+  try {
+    const direct = JSON.parse(trimmed);
+    const parsed = tryParseFullPoliciesFromUnknown(direct, options);
+    if (parsed) {
+      return {
+        policies: parsed.map((p) => ({
+          name: p.name,
+          command: p.command,
+          description: p.description,
+          roles: p.roles ?? [],
+	          usingExpression: p.usingExpression ?? {},
+          ...(p.withCheckExpression ? { withCheckExpression: p.withCheckExpression } : {}),
+        })),
+        explanation: deriveExplanationFromText(responseStr),
+      };
+    }
+  } catch {
+    // ignore
+  }
+
+  // 2) Extract embedded JSON objects/arrays from prose/markdown
+  const extractedValues = extractJsonValuesFromText(responseStr);
+  for (const value of extractedValues) {
+    const parsed = tryParseFullPoliciesFromUnknown(value, options);
+    if (parsed) {
+      return {
+        policies: parsed.map((p) => ({
+          name: p.name,
+          command: p.command,
+          description: p.description,
+          roles: p.roles ?? [],
+	          usingExpression: p.usingExpression ?? {},
+          ...(p.withCheckExpression ? { withCheckExpression: p.withCheckExpression } : {}),
+        })),
+        explanation: deriveExplanationFromText(responseStr),
+      };
+    }
+  }
+
+  return null;
+}
+
+function extractArgsFromRawInput<T>(rawInput: unknown, schema: z.ZodType<T>): T | null {
+  const candidates: unknown[] = [];
+
+  if (rawInput !== undefined) candidates.push(rawInput);
+
+  if (rawInput && typeof rawInput === 'object') {
+    const ri: any = rawInput;
+    if (ri.args !== undefined) candidates.push(ri.args);
+    if (ri.arguments !== undefined) candidates.push(ri.arguments);
+    if (ri.input !== undefined) candidates.push(ri.input);
+    if (ri.parameters !== undefined) candidates.push(ri.parameters);
+  }
+
+  for (const candidate of candidates) {
+    const maybeObj =
+      typeof candidate === 'string'
+        ? (() => {
+            try {
+              return JSON.parse(candidate);
+            } catch {
+              return null;
+            }
+          })()
+        : candidate;
+
+    const parsed = schema.safeParse(maybeObj);
+    if (parsed.success) return parsed.data;
+  }
+
+  return null;
+}
+
+function deriveExplanationFromText(text: string | undefined): string {
+  const trimmed = (text ?? '').trim();
+  if (!trimmed) return 'Policy generated successfully';
+  const firstLine = trimmed.split('\n').map((l) => l.trim()).find(Boolean);
+  return firstLine || 'Policy generated successfully';
 }
 
 // ============================================================================
@@ -189,7 +592,7 @@ export interface GeneratePolicyOptions {
   tableName: string;
   tableSchema?: Record<string, unknown>;
   existingPolicies?: string[];
-  model?: string;
+  model?: AuggieModel;
 }
 
 export interface GeneratePolicyResult {
@@ -205,8 +608,9 @@ export async function generatePolicyExpression(
 ): Promise<GeneratePolicyResult> {
   const client = await createAuggieClient({
     apiKey: options.apiKey,
-    apiUrl: options.apiUrl,
-    model: options.model
+    ...(options.apiUrl ? { apiUrl: options.apiUrl } : {}),
+    ...(options.model ? { model: options.model } : {}),
+    enabledTools: ['generate_rls_policy'],
   });
 
   try {
@@ -219,49 +623,58 @@ ${options.prompt}
 
 Generate the policy expression as a JSON object and call the generate_rls_policy tool.`;
 
-    console.log('Sending prompt to Auggie:', fullPrompt.substring(0, 300) + '...');
+    const collector = createToolCallCollector(client);
+    const responseText = await client.prompt(fullPrompt);
+		await collector.waitForIdle();
+		const toolCalls = collector.list();
+		collector.stop();
 
-    const response = await client.prompt(fullPrompt);
+    // Preferred: parse structured tool-call args from session updates.
+		for (const call of toolCalls) {
+			const args = extractArgsFromRawInput(call.rawInput ?? call.rawOutput, generatePolicyToolArgsSchema);
+			if (!args) continue;
 
-    console.log('Auggie raw response:', response);
-    console.log('Auggie response type:', typeof response);
+			return {
+				expression: args.expression,
+				explanation: args.explanation,
+			};
+		}
 
-    // The Auggie SDK should have called our tool and the response should contain the tool result
-    // The tool returns JSON, so try to parse it from the response
+    // Fallback: parse JSON (either full JSON response or embedded JSON).
     try {
-      // First, try to parse the entire response as JSON
-      const parsed = JSON.parse(response);
-      if (parsed.expression && parsed.explanation) {
-        console.log('Successfully parsed policy from response');
+      const parsed = JSON.parse(responseText);
+      const candidate = generatePolicyToolArgsSchema.safeParse(parsed);
+      if (candidate.success) {
         return {
-          expression: parsed.expression,
-          explanation: parsed.explanation,
+          expression: candidate.data.expression,
+          explanation: candidate.data.explanation,
         };
       }
-    } catch (e) {
-      // Not valid JSON, try to extract JSON from the response
-      try {
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          if (parsed.expression && parsed.explanation) {
-            console.log('Successfully extracted policy from response');
-            return {
-              expression: parsed.expression,
-              explanation: parsed.explanation,
-            };
-          }
+    } catch {
+      // ignore
+    }
+
+    try {
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        const candidate = generatePolicyToolArgsSchema.safeParse(parsed);
+        if (candidate.success) {
+          return {
+            expression: candidate.data.expression,
+            explanation: candidate.data.explanation,
+          };
         }
-      } catch (parseError) {
-        console.error('Failed to parse JSON from response:', parseError);
       }
+    } catch (parseError) {
+      console.error('Failed to parse JSON from response:', parseError);
     }
 
     // Fallback: Try to manually construct the policy from the description
     // Based on the user's request, generate a reasonable policy
     console.warn('AI did not call the tool properly, attempting to construct policy from description');
 
-    const policy = constructPolicyFromDescription(options.prompt, response);
+    const policy = constructPolicyFromDescription(options.prompt, responseText);
     if (policy) {
       console.log('Successfully constructed policy from description');
       return policy;
@@ -269,10 +682,10 @@ Generate the policy expression as a JSON object and call the generate_rls_policy
 
     // Last resort: return the raw response as explanation
     console.warn('Could not construct policy, returning raw response');
-    console.warn('Response was:', response);
+    console.warn('Response was:', responseText);
     return {
       expression: {},
-      explanation: `The AI did not generate a valid policy. Response: ${response}`,
+      explanation: `The AI did not generate a valid policy. Response: ${responseText}`,
     };
   } catch (error) {
     console.error('Error generating policy:', error);
@@ -293,7 +706,7 @@ export interface GenerateFullPolicyOptions {
   tableName: string;
   tableSchema?: Record<string, unknown>;
   existingPolicies?: string[];
-  model?: string;
+  model?: AuggieModel;
 }
 
 export interface GeneratedPolicyDefinition {
@@ -320,182 +733,140 @@ export async function generateFullPolicy(
     apiKey: options.apiKey,
     ...(options.apiUrl && { apiUrl: options.apiUrl }),
     ...(options.model && { model: options.model }),
-    forceToolUse: false, // Don't force tool use - let AI decide or respond with JSON
+    forceToolUse: false, // (Not currently enforced by the SDK) Let the model decide.
+    enabledTools: ['generate_full_policy'],
   });
 
   try {
     // Build context for the AI
     const context = buildFullPolicyContext(options);
-    const fullPrompt = `${context}
+    const primaryPrompt = `${context}
 
 ## User Request
 ${options.prompt}
 
-## Response Format
-You can either:
-1. Call the generate_full_policy tool with the complete policy definition, OR
-2. Respond with a JSON object containing the policy definition
+## Output Requirements
+- Prefer calling the generate_full_policy tool.
+- If you cannot call tools, respond with ONLY strict JSON (no prose, no markdown, no extra keys).
+- For multiple policies, respond with a JSON array of policy objects.
 
-If responding with JSON, use this exact format:
+JSON shape (single policy):
 {
-  "name": "table_command_purpose",
+  "name": "posts_select_own",
   "command": ["SELECT"],
-  "description": "Human-readable description",
+  "description": "...",
   "roles": ["authenticated"],
-  "usingExpression": { /* JSON expression */ },
-  "withCheckExpression": { /* JSON expression or omit */ }
-}
+  "usingExpression": {},
+  "withCheckExpression": {}
+}`;
 
-For multiple policies, respond with an array of policy objects.`;
+    const fallbackPrompt = `Return ONLY strict JSON. Do not include any explanatory text.
 
-    // Generate a request ID for tracking
-    const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+User request: ${options.prompt}
+Table: ${options.tableName}
 
-    console.log('=== Auggie Request ===');
-    console.log('Request ID:', requestId);
-    console.log('Prompt preview:', fullPrompt.substring(0, 300) + '...');
-    console.log('Full prompt length:', fullPrompt.length);
-    console.log('======================');
+Return either a single policy object or an array of policy objects with fields:
+name, command (array), description, roles (array), usingExpression (object), withCheckExpression (object optional).
 
-    const response = await client.prompt(fullPrompt);
+Naming convention: {table}_{command}_{purpose} (lowercase underscores), e.g. posts_select_own.`;
 
-    console.log('=== Auggie Response Debug ===');
-    console.log('Request ID:', requestId);
-    console.log('Response type:', typeof response);
-    console.log('Response is null:', response === null);
-    console.log('Response is undefined:', response === undefined);
-    console.log('Response keys:', response && typeof response === 'object' ? Object.keys(response) : 'N/A');
-    console.log('Response JSON:', JSON.stringify(response, null, 2));
-    console.log('=== End Debug ===');
+    const attempts = [
+      { label: 'primary', prompt: primaryPrompt },
+      { label: 'fallback_json_only', prompt: fallbackPrompt },
+    ] as const;
 
-    // The Auggie SDK returns an object with text and toolCalls properties
-    // Check if response has toolCalls (structured response from SDK)
-    if (typeof response === 'object' && response !== null && 'toolCalls' in response) {
-      const toolCalls = (response as any).toolCalls;
-      const text = (response as any).text || '';
+    let lastResponseStr = '';
+    let lastToolCalls: ToolCallSnapshot[] = [];
 
-      console.log('Found tool calls:', toolCalls);
+    for (const attempt of attempts) {
+      const collector = createToolCallCollector(client);
+			const responseStr = await client.prompt(attempt.prompt, { isAnswerOnly: true });
+			await collector.waitForIdle();
+			const toolCalls = collector.list();
+			collector.stop();
 
-      if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-        // Extract policies from tool calls
-        const policies = toolCalls
-          .filter((call: any) => call.toolName === 'generate_full_policy')
-          .map((call: any) => ({
-            name: call.args.name,
-            command: Array.isArray(call.args.command) ? call.args.command : [call.args.command],
-            description: call.args.description,
-            roles: call.args.roles || [],
-            usingExpression: call.args.usingExpression,
-            withCheckExpression: call.args.withCheckExpression,
-          }));
+      lastResponseStr = responseStr;
 
-        if (policies.length > 0) {
-          return {
-            policies,
-            explanation: text || 'Policy generated successfully',
-          };
-        }
+      // Preferred: parse structured tool-call args from session updates.
+      lastToolCalls = toolCalls;
+			const toolPolicies = toolCalls
+				.map((c) =>
+					extractArgsFromRawInput(c.rawInput ?? c.rawOutput, generateFullPolicyToolArgsSchema)
+				)
+				.filter(Boolean) as Array<z.infer<typeof generateFullPolicyToolArgsSchema>>;
+
+      if (toolPolicies.length > 0) {
+        return {
+          policies: toolPolicies.map((p) => ({
+            name: ensurePolicyNameConvention({
+              name: p.name,
+              tableName: options.tableName,
+              command: p.command,
+              fallbackPurpose: p.description || options.prompt,
+            }),
+            command: p.command,
+            description: p.description,
+            roles: p.roles ?? [],
+						usingExpression: p.usingExpression ?? {},
+            ...(p.withCheckExpression ? { withCheckExpression: p.withCheckExpression } : {}),
+          })),
+          explanation: deriveExplanationFromText(responseStr),
+        };
       }
-    }
 
-    // Fallback: Try to parse as JSON string (for backwards compatibility)
-    let responseStr = typeof response === 'string' ? response : '';
+      if (responseStr?.trim()) {
+        const parsed = tryParseFullPoliciesFromTextResponse(responseStr, options);
+        if (parsed) return parsed;
+      }
 
-    // If response is an object with text property, extract it
-    if (typeof response === 'object' && response !== null && 'text' in response) {
-      responseStr = (response as any).text || '';
-    }
-
-    // If still empty, try JSON.stringify
-    if (!responseStr && typeof response === 'object') {
-      responseStr = JSON.stringify(response);
-    }
-
-    // Check if response is empty or just whitespace
-    if (!responseStr || responseStr.trim() === '' || responseStr === '""' || responseStr === '{}') {
-      console.error('AI returned empty response. This usually means:');
-      console.error('1. The API key may be invalid or expired');
-      console.error('2. The model may not support the request');
-      console.error('3. The prompt may be too complex or unclear');
-      console.error('Response object:', response);
-      console.error('Full prompt was:', fullPrompt);
-
-      throw new Error(
-        'AI returned an empty response. Please check:\n' +
-        '1. Your Augment API key is valid and has not expired\n' +
-        '2. Try simplifying your policy description\n' +
-        '3. Check the console logs for more details'
+      // Retry on empty or unparsable response.
+      console.warn(
+        `generateFullPolicy attempt '${attempt.label}' did not yield parseable output (toolCalls=${toolCalls.length}, responseLen=${responseStr?.length ?? 0}).`
       );
     }
 
-    // Check if response contains text (AI didn't call the tool)
-    if (typeof response === 'string' || (typeof response === 'object' && 'text' in response && !(response as any).toolCalls)) {
-      const text = typeof response === 'string' ? response : (response as any).text || '';
+    // Fallback: heuristically construct policies if the model didn't return parseable output.
+    // This mirrors generatePolicyExpression, which already uses a construction fallback.
+    const constructed = constructFullPoliciesFromDescription(options, String(lastResponseStr ?? ''));
+    if (constructed) return constructed;
 
-      console.warn('AI responded with text instead of calling tool. Text:', text.substring(0, 200));
-
-      // Try to extract JSON objects from the text
-      const jsonMatches = text.matchAll(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
-      const extractedPolicies: any[] = [];
-
-      for (const match of jsonMatches) {
-        try {
-          const parsed = JSON.parse(match[0]);
-          if (parsed.name && parsed.command && parsed.usingExpression) {
-            extractedPolicies.push({
-              name: parsed.name,
-              command: Array.isArray(parsed.command) ? parsed.command : [parsed.command],
-              description: parsed.description || '',
-              roles: parsed.roles || ['authenticated'],
-              usingExpression: parsed.usingExpression,
-              withCheckExpression: parsed.withCheckExpression,
-            });
-          }
-        } catch (e) {
-          // Skip invalid JSON
-        }
-      }
-
-      if (extractedPolicies.length > 0) {
-        console.log('Extracted policies from text response:', extractedPolicies.length);
-        return {
-          policies: extractedPolicies,
-          explanation: text.split('\n')[0] || 'Policies extracted from AI response',
-        };
-      }
-    }
-
-    try {
-      const parsed = JSON.parse(responseStr);
-
-      // Handle single policy or array of policies
-      const policies = Array.isArray(parsed) ? parsed : [parsed];
-
-      return {
-        policies: policies.map((p: any) => ({
-          name: p.name,
-          command: Array.isArray(p.command) ? p.command : [p.command],
-          description: p.description,
-          roles: p.roles || [],
-          usingExpression: p.usingExpression,
-          withCheckExpression: p.withCheckExpression,
-        })),
-        explanation: parsed.explanation || parsed.description || 'Policy generated successfully',
-      };
-    } catch (parseError) {
-      console.error('Failed to parse full policy response:', parseError);
+    if (!lastResponseStr?.trim() || lastResponseStr === '""' || lastResponseStr === '{}') {
+      console.error('AI returned empty response after retries. This usually means:');
+      console.error('1. The API key may be invalid or expired');
+      console.error('2. The model may not support the request');
+      console.error('3. The prompt may be too complex or unclear');
 
       throw new Error(
-        `Failed to parse AI response. The AI did not call the generate_full_policy tool properly.\n` +
-        `Response type: ${typeof response}\n` +
-        `Response: ${responseStr.substring(0, 500)}\n\n` +
+        'AI returned an empty response. Please check:\n' +
+          '1. Your Augment API key is valid and has not expired\n' +
+          '2. Try simplifying your policy description\n' +
+          '3. Check the console logs for more details'
+      );
+    }
+
+    throw new Error(
+      `Failed to parse AI response. The AI did not call the generate_full_policy tool and did not return JSON.\n` +
+        `Response type: ${typeof lastResponseStr}\n` +
+        `Tool calls seen: ${lastToolCalls.length}\n` +
+        `Response: ${String(lastResponseStr).substring(0, 500)}\n\n` +
         `This may indicate:\n` +
         `1. The model doesn't support tool calling\n` +
         `2. The API configuration is incorrect\n` +
         `3. The prompt needs to be simplified`
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    // Common failure mode when the local `auggie` binary is out of date or the wrong API URL is used.
+    if (message.includes('session/prompt') && message.includes('404')) {
+      throw new Error(
+        `Auggie request failed (HTTP 404 during session/prompt). This usually means either:\n` +
+          `1) Your configured AUGMENT_API_URL/apiUrl is not compatible with ACP mode, or\n` +
+          `2) Your local 'auggie' binary is out of date and incompatible with the API.\n\n` +
+          `Try updating the Auggie CLI, and verify the tenant API URL you entered is correct.\n` +
+          `Original error: ${message}`
       );
     }
-  } catch (error) {
+
     console.error('Error generating full policy:', error);
     throw error;
   } finally {
@@ -515,7 +886,7 @@ export interface GenerateTestsOptions {
   policyName: string;
   policyExpression?: Record<string, unknown>;
   tableSchema?: Record<string, unknown>;
-  model?: string;
+  model?: AuggieModel;
 }
 
 export interface GeneratedTest {
@@ -537,15 +908,17 @@ export async function generatePolicyTests(
 ): Promise<GeneratedTest[]> {
   const client = await createAuggieClient({
     apiKey: options.apiKey,
-    apiUrl: options.apiUrl,
-    model: options.model
+    ...(options.apiUrl ? { apiUrl: options.apiUrl } : {}),
+    ...(options.model ? { model: options.model } : {}),
+    enabledTools: ['generate_policy_test'],
   });
 
   try {
     const context = buildTestContext(options);
     const fullPrompt = `${context}\n\nGenerate test cases: ${options.prompt}`;
 
-    const response = await client.prompt(fullPrompt);
+    const responseText = await client.prompt(fullPrompt);
+    void responseText;
 
     // Parse response and convert to GeneratedTest[]
     // Placeholder for now
@@ -569,7 +942,6 @@ function constructPolicyFromDescription(
 ): GeneratePolicyResult | null {
   // Look for common patterns in the prompt to generate a reasonable policy
   const lowerPrompt = prompt.toLowerCase();
-  const lowerResponse = response.toLowerCase();
 
   // Pattern 1: Creator/owner access with team members
   if ((lowerPrompt.includes('creator') || lowerPrompt.includes('owner')) &&
@@ -629,6 +1001,125 @@ function constructPolicyFromDescription(
   }
 
   return null;
+}
+
+function constructFullPoliciesFromDescription(
+  options: GenerateFullPolicyOptions,
+  responseText: string
+): GenerateFullPolicyResult | null {
+  try {
+    const promptLower = options.prompt.toLowerCase();
+    const table = normalizeIdentifier(options.tableName);
+
+    const columnNames: string[] = (() => {
+      const schema: any = options.tableSchema;
+      if (!schema || typeof schema !== 'object') return [];
+      const cols = Array.isArray(schema.columns) ? schema.columns : [];
+      return cols
+        .map((c: any) => (typeof c?.name === 'string' ? normalizeIdentifier(c.name) : null))
+        .filter(Boolean) as string[];
+    })();
+
+    const ownerColumn =
+      (columnNames.includes('user_id') && 'user_id') ||
+      (columnNames.includes('owner_id') && 'owner_id') ||
+      (columnNames.includes('creator_id') && 'creator_id') ||
+      (columnNames.includes('created_by') && 'created_by') ||
+      null;
+
+    const inferredCommands = (() => {
+      const cmds = new Set<'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE'>();
+
+      if (/(\bcrud\b)/i.test(promptLower)) {
+        cmds.add('SELECT');
+        cmds.add('INSERT');
+        cmds.add('UPDATE');
+        cmds.add('DELETE');
+      }
+
+      if (/(\bview\b|\bread\b|\bselect\b|\blist\b)/i.test(promptLower)) cmds.add('SELECT');
+      if (/(\bcreate\b|\binsert\b|\badd\b)/i.test(promptLower)) cmds.add('INSERT');
+      if (/(\bupdate\b|\bedit\b|\bmodify\b)/i.test(promptLower)) cmds.add('UPDATE');
+      if (/(\bdelete\b|\bremove\b)/i.test(promptLower)) cmds.add('DELETE');
+
+      if (cmds.size === 0) cmds.add('SELECT');
+      return Array.from(cmds);
+    })();
+
+    const hasAdmin = /\badmin\b/i.test(promptLower);
+    const hasOwn = /(\bown\b|their own|only their own|only see their)/i.test(promptLower);
+    const mentionsAuthenticated = /\bauthenticated\b/i.test(promptLower);
+    const rolesDefault = [mentionsAuthenticated ? 'authenticated' : 'authenticated'];
+
+    // Only use this fallback when we can infer intent from the prompt.
+    // Otherwise, keep the existing error behavior (it provides better guidance).
+    if (!hasAdmin && !hasOwn) return null;
+
+    const inferredOwnerColumn = ownerColumn || (hasOwn ? 'user_id' : null);
+    const ownedExpression: Record<string, unknown> | null = inferredOwnerColumn
+      ? {
+          [inferredOwnerColumn]: { _eq: { _session_var: 'user_id' } },
+        }
+      : null;
+
+    const policies: GeneratedPolicyDefinition[] = [];
+
+    // If the prompt mentions admins, create admin policies scoped by role.
+    if (hasAdmin) {
+      for (const cmd of inferredCommands) {
+        const purpose = 'admin';
+        const name = ensurePolicyNameConvention({
+          name: `${table}_${cmd.toLowerCase()}_${purpose}`,
+          tableName: table,
+          command: [cmd],
+          fallbackPurpose: purpose,
+        });
+
+        policies.push({
+          name,
+          command: [cmd],
+          description: `Allow admins to ${cmd.toLowerCase()} ${options.tableName}`,
+          roles: ['authenticated'],
+          usingExpression: { _session_var: 'role', _eq: 'admin' },
+          ...(cmd === 'SELECT' ? {} : { withCheckExpression: { _session_var: 'role', _eq: 'admin' } }),
+        });
+      }
+    }
+
+    // If the prompt mentions "own" and we can infer an ownership column, create owned policies.
+    if (hasOwn && ownedExpression) {
+      for (const cmd of inferredCommands) {
+        const purpose = 'own';
+        const name = ensurePolicyNameConvention({
+          name: `${table}_${cmd.toLowerCase()}_${purpose}`,
+          tableName: table,
+          command: [cmd],
+          fallbackPurpose: purpose,
+        });
+
+        policies.push({
+          name,
+          command: [cmd],
+          description: `Allow users to ${cmd.toLowerCase()} only their own ${options.tableName}`,
+          roles: rolesDefault,
+          usingExpression: ownedExpression,
+          ...(cmd === 'SELECT' ? {} : { withCheckExpression: ownedExpression }),
+        });
+      }
+    }
+
+    // If we couldn't infer anything useful, do not mask errors.
+    if (policies.length === 0) return null;
+
+    return {
+      policies,
+      explanation:
+        'Fallback policy generation was used because the model did not return parseable tool output/JSON. ' +
+        (responseText?.trim() ? `Model response preview: ${deriveExplanationFromText(responseText)}` : ''),
+    };
+  } catch {
+    return null;
+  }
 }
 
 function buildPolicyContext(options: GeneratePolicyOptions): string {

@@ -25,13 +25,15 @@ import {
 } from '@speajus/rlsify-types';
 
 import {
-  createServiceContainer,
-  databasePoolBlob,
+  registerService,
+  databasePool,
 } from './container.js';
 import { SchemaServiceImpl } from './services/schema-service.js';
 import { PolicyServiceImpl } from './services/policy-service.js';
 import { HealthServiceImpl } from './services/health-service.js';
 import { ConnectionServiceImpl } from './services/connection-service.js';
+import { serviceConfig } from './config.js';
+import { createBlob, createContainer } from '@speajus/diblob';
 
 // Export service implementations for desktop app and other consumers
 export { SchemaServiceImpl } from './services/schema-service.js';
@@ -39,16 +41,13 @@ export { PolicyServiceImpl } from './services/policy-service.js';
 export { HealthServiceImpl } from './services/health-service.js';
 export { ConnectionServiceImpl } from './services/connection-service.js';
 
-// Create container with configuration loaded via @speajus/diblob-config
-const { container, config } = createServiceContainer();
 
 // Register logger blobs (required by diblob-connect)
-registerLoggerBlobs(container);
-
+const serviceContainer = createContainer();
 // Graceful shutdown
 async function shutdown() {
   console.log('\nShutting down gracefully...');
-  await container.dispose();
+  await serviceContainer.dispose();
   process.exit(0);
 }
 
@@ -56,12 +55,16 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 // Start server
-async function start() {
+async function start(container = serviceContainer) {
+  registerService(container);
+  registerLoggerBlobs(container);
+
+  const config = serviceConfig;
   try {
     console.log(`Connecting to database at ${config.database.host}:${config.database.port}/${config.database.database}...`);
 
     // Get the database pool
-    const dbPool = await container.resolve(databasePoolBlob);
+    const dbPool = await container.resolve(databasePool);
 
     // Register gRPC server with diblob-connect
     registerGrpcBlobs(container, {
@@ -70,12 +73,18 @@ async function start() {
     });
 
     // Create service instances once
-    const schemaService = new SchemaServiceImpl(dbPool);
-    const policyService = new PolicyServiceImpl(dbPool);
-    const healthService = new HealthServiceImpl(dbPool);
+    const schemaService = createBlob<SchemaServiceImpl>('SchemaService');// new SchemaServiceImpl(dbPool);
+    container.register(schemaService, SchemaServiceImpl, dbPool);
 
-    // Create connection service (manages pool switching)
-    const connectionService = new ConnectionServiceImpl(dbPool, (newPool) => {
+    const policyService = createBlob<PolicyServiceImpl>('PolicyService'); // new PolicyServiceImpl(dbPool);
+    container.register(policyService, PolicyServiceImpl, dbPool);
+
+    const healthService = createBlob<HealthServiceImpl>('HealthService'); // new HealthServiceImpl(dbPool);
+    container.register(healthService, HealthServiceImpl, dbPool);
+    
+    const connectionService = createBlob<ConnectionServiceImpl>('ConnectionService');
+    
+    container.register(connectionService, ConnectionServiceImpl, dbPool, (newPool) => {
       // Update the pool reference in existing service instances
       if (newPool) {
         schemaService.setPool(newPool);
@@ -83,7 +92,6 @@ async function start() {
         healthService.setPool(newPool);
       }
     });
-
     // Register gRPC services
     grpcServiceRegistry.registerService(SchemaServiceProto, schemaService);
     grpcServiceRegistry.registerService(PolicyServiceProto, policyService);
@@ -107,5 +115,5 @@ async function start() {
 
 start();
 
-export { container, config };
+
 

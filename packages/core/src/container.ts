@@ -13,30 +13,29 @@ import { PolicySimulator } from './services/policy-simulator.js';
 import { TemplateRegistry } from './templates/template-registry.js';
 
 // Create blobs for each service
-export const policyGeneratorBlob = createBlob<PolicyGenerator>('PolicyGenerator');
-export const policyValidatorBlob = createBlob<PolicyValidator>('PolicyValidator');
-export const schemaIntrospectorBlob = createBlob<SchemaIntrospector>('SchemaIntrospector');
-export const joinResolverBlob = createBlob<JoinResolver>('JoinResolver');
-export const configLoaderBlob = createBlob<ConfigLoader>('ConfigLoader');
-export const migrationGeneratorBlob = createBlob<MigrationGenerator>('MigrationGenerator');
-export const policySimulatorBlob = createBlob<PolicySimulator>('PolicySimulator');
-export const templateRegistryBlob = createBlob<TemplateRegistry>('TemplateRegistry');
+export const policyGenerator = createBlob<PolicyGenerator>('PolicyGenerator');
+export const policyValidator = createBlob<PolicyValidator>('PolicyValidator');
+export const schemaIntrospector = createBlob<SchemaIntrospector>('SchemaIntrospector');
+export const joinResolver = createBlob<JoinResolver>('JoinResolver');
+export const configLoader = createBlob<ConfigLoader>('ConfigLoader');
+export const migrationGenerator = createBlob<MigrationGenerator>('MigrationGenerator');
+export const policySimulator = createBlob<PolicySimulator>('PolicySimulator');
+export const templateRegistry = createBlob<TemplateRegistry>('TemplateRegistry');
 
 /**
  * Create a new RLSify container instance with all services registered
  */
-export function createContainer() {
-  const container = createDiblobContainer();
+export function registerCore(container = createDiblobContainer()) {
 
   // Register services with their dependencies
-  container.register(joinResolverBlob, JoinResolver);
-  container.register(policyValidatorBlob, PolicyValidator, joinResolverBlob);
-  container.register(policyGeneratorBlob, PolicyGenerator, policyValidatorBlob, joinResolverBlob);
-  container.register(schemaIntrospectorBlob, SchemaIntrospector);
-  container.register(configLoaderBlob, ConfigLoader);
-  container.register(migrationGeneratorBlob, MigrationGenerator, policyGeneratorBlob);
-  container.register(policySimulatorBlob, PolicySimulator);
-  container.register(templateRegistryBlob, TemplateRegistry);
+  container.register(joinResolver, JoinResolver);
+  container.register(policyValidator, PolicyValidator, joinResolver);
+  container.register(policyGenerator, PolicyGenerator, policyValidator, joinResolver);
+  container.register(schemaIntrospector, SchemaIntrospector);
+  container.register(configLoader, ConfigLoader);
+  container.register(migrationGenerator, MigrationGenerator, policyGenerator);
+  container.register(policySimulator, PolicySimulator);
+  container.register(templateRegistry, TemplateRegistry);
 
   return container;
 }

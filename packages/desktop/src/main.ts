@@ -74,21 +74,17 @@ const localServiceRegistry = {
   },
 };
 
-import { createDesktopContainer, databasePoolBlob, type DatabaseConfig } from './container.js';
+import { registerDatabaseConfig,  pool, type DatabaseConfig, dbConfig } from './container.js';
 // Import from /services subpath to avoid side effects from the main export
-import { SchemaServiceImpl, PolicyServiceImpl, HealthServiceImpl } from '@speajus/rlsify-service/services';
-import type { PolicyValidator } from '@speajus/rlsify-core';
 import type { IpcStreamRequest, IpcUnaryRequest } from './transport/ipc-transport.js';
-
+import { createContainer } from '@speajus/diblob';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Track active streams for cleanup
 const activeStreams = new Map<string, { cancel: () => void }>();
 
 // Container and database state
-let container: ReturnType<typeof createDesktopContainer>['container'] | null = null;
-let currentDbConfig: DatabaseConfig | null = null;
-let policyValidator: PolicyValidator | null = null;
+const container = createContainer();
 
 /**
  * Create the main application window
@@ -117,25 +113,6 @@ function createWindow(): BrowserWindow {
   return mainWindow;
 }
 
-/**
- * Initialize services with the current database connection
- */
-async function initializeServices(): Promise<void> {
-  if (!container) {
-    throw new Error('Container not initialized. Connect to a database first.');
-  }
-  if (!policyValidator) {
-    throw new Error('PolicyValidator not initialized. Connect to a database first.');
-  }
-
-  // Resolve database pool from container
-  const dbPool = await container.resolve(databasePoolBlob);
-
-  // Register services with the local service registry
-  localServiceRegistry.registerService(SchemaServiceProto, new SchemaServiceImpl(dbPool));
-  localServiceRegistry.registerService(PolicyServiceProto, new PolicyServiceImpl(dbPool, policyValidator));
-  localServiceRegistry.registerService(HealthServiceProto, new HealthServiceImpl(dbPool));
-}
 
 /**
  * Find a method in a service definition
@@ -272,22 +249,14 @@ ipcMain.handle('database:connect', async (_event, config: DatabaseConfig) => {
       await container.dispose();
       localServiceRegistry.clear();
     }
-
-    // Create new container with the provided config
-    const result = createDesktopContainer(config);
-    container = result.container;
-    currentDbConfig = config;
-    policyValidator = result.policyValidator;
-
-    // Register logger blobs
     registerLoggerBlobs(container);
 
-    // Initialize services
-    await initializeServices();
+    // Create new container with the provided config
+    registerDatabaseConfig(config, container);
+    
 
     // Verify the connection actually works by running a simple query
-    const dbPool = await container.resolve(databasePoolBlob);
-    const client = await dbPool.connect();
+    const client = await pool.connect();
     try {
       await client.query('SELECT 1');
     } finally {
@@ -313,9 +282,7 @@ ipcMain.handle('database:connect', async (_event, config: DatabaseConfig) => {
       } catch {
         // Ignore disposal errors
       }
-      container = null;
-      currentDbConfig = null;
-      policyValidator = null;
+
       localServiceRegistry.clear();
     }
     return {
@@ -331,23 +298,24 @@ ipcMain.handle('database:connect', async (_event, config: DatabaseConfig) => {
 ipcMain.handle('database:disconnect', async () => {
   if (container) {
     await container.dispose();
-    container = null;
-    currentDbConfig = null;
-  }
-  localServiceRegistry.clear();
+
+    }
+      localServiceRegistry.clear();
 });
 
 /**
  * Get database connection status
  */
 ipcMain.handle('database:status', () => {
-  if (container && currentDbConfig) {
+  if (container) {
     return {
       connected: true,
-      database: currentDbConfig.database,
-      host: currentDbConfig.host,
-      port: currentDbConfig.port,
-      user: currentDbConfig.user,
+      database: dbConfig.database,
+      host: dbConfig.host,
+      port: dbConfig.port,
+      user: dbConfig.user,
+      ssl: dbConfig.ssl,
+
     };
   }
   return { connected: false };

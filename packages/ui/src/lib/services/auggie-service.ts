@@ -14,6 +14,8 @@ import { policyClient } from '$lib/api/client.js';
 
 const STORAGE_KEY = 'rlsify_auggie_token';
 
+const DEFAULT_AUGMENT_API_URL = 'https://api.augmentcode.com';
+
 export interface AuggieTokenData {
   accessToken: string;
   tenantURL: string;
@@ -33,7 +35,21 @@ export function retrieveAuggieToken(): AuggieTokenData | null {
   try {
     const parsed = JSON.parse(stored);
     if (parsed.accessToken && parsed.tenantURL) {
-      return parsed;
+			// Migrate the old default staging URL to the public API host.
+			// (Users can still override this by storing a different tenantURL explicitly.)
+			const tenantURL =
+				parsed.tenantURL === 'https://staging-shard-0.api.augmentcode.com/'
+					? DEFAULT_AUGMENT_API_URL
+					: parsed.tenantURL;
+
+			if (tenantURL !== parsed.tenantURL) {
+				localStorage.setItem(
+					STORAGE_KEY,
+					JSON.stringify({ accessToken: parsed.accessToken, tenantURL })
+				);
+			}
+
+			return { accessToken: parsed.accessToken, tenantURL };
     }
   } catch {
     // Not JSON, treat as old format (plain accessToken)
@@ -43,7 +59,7 @@ export function retrieveAuggieToken(): AuggieTokenData | null {
   // Use a default tenantURL
   return {
     accessToken: stored,
-    tenantURL: 'https://staging-shard-0.api.augmentcode.com/',
+		tenantURL: DEFAULT_AUGMENT_API_URL,
   };
 }
 
@@ -157,7 +173,6 @@ export async function generatePolicyTests(
 
   const response = await policyClient.generateTests({
     apiKey: tokenData.accessToken,
-    apiUrl: tokenData.tenantURL,
     prompt: options.prompt,
     tableName: options.tableName,
     policyName: options.policyName,

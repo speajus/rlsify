@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "vitest run --testNamePattern='Integration'"
+		"test:integration": "RUN_AUGGIE_INTEGRATION_TESTS=true vitest run src/services/auggie-service.integration.test.ts"
   },
   "dependencies": {
     "@augmentcode/auggie-sdk": "^0.1.11",

@@ -15,38 +15,26 @@ import {
 import { type Container, createBlob } from '@speajus/diblob';
 
 // Blob definitions for DI container usage
-export const schemaClientBlob = createBlob<Client<typeof SchemaService>>('SchemaClient');
-export const policyClientBlob = createBlob<Client<typeof PolicyService>>('PolicyClient');
-export const healthClientBlob = createBlob<Client<typeof HealthService>>('HealthClient');
-export const connectionClientBlob = createBlob<Client<typeof ConnectionServiceProto>>('ConnectionClient');
+export const schemaClient = createBlob<Client<typeof SchemaService>>('SchemaClient');
+export const policyClient = createBlob<Client<typeof PolicyService>>('PolicyClient');
+export const healthClient = createBlob<Client<typeof HealthService>>('HealthClient');
+export const connectionClient = createBlob<Client<typeof ConnectionServiceProto>>('ConnectionClient');
 
-// Default transport for web
-const defaultTransport = createConnectTransport({
-  baseUrl: '',
-});
-
-// Singleton client instances for direct usage by stores
-export let schemaClient: Client<typeof SchemaService> = createClient(SchemaService, defaultTransport);
-export let policyClient: Client<typeof PolicyService> = createClient(PolicyService, defaultTransport);
-export let healthClient: Client<typeof HealthService> = createClient(HealthService, defaultTransport);
-export let connectionClient: Client<typeof ConnectionServiceProto> = createClient(ConnectionServiceProto, defaultTransport);
 
 /**
  * Configure custom clients (e.g., IPC-based clients for Electron).
  * This replaces the singleton instances with custom ones.
  */
-export function configureClients(container: Container, transport: Transport = defaultTransport): void {
+export function configureClients(container: Container, transport: Transport = createConnectTransport({
+  baseUrl: '',
+})): void {
   // Register with container for DI
-  container.register(schemaClientBlob, createClient, SchemaService, transport);
-  container.register(policyClientBlob, createClient, PolicyService, transport);
-  container.register(healthClientBlob, createClient, HealthService, transport);
-  container.register(connectionClientBlob, createClient, ConnectionServiceProto, transport);
+  container.register(schemaClient, createClient, SchemaService, transport);
+  container.register(policyClient, createClient, PolicyService, transport);
+  container.register(healthClient, createClient, HealthService, transport);
+  container.register(connectionClient, createClient, ConnectionServiceProto, transport);
 
-  // Also update the singleton instances
-  schemaClient = createClient(SchemaService, transport);
-  policyClient = createClient(PolicyService, transport);
-  healthClient = createClient(HealthService, transport);
-  connectionClient = createClient(ConnectionServiceProto, transport);
+
 }
 
 

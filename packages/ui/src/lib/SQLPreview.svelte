@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { RLSPolicyConfig } from '@speajus/rlsify-types';
-  import { createContainer, policyGeneratorBlob } from '@speajus/rlsify-core';
+  import { createContainer, policyGenerator } from '@speajus/rlsify-core';
 
   interface Props {
     config: RLSPolicyConfig;
@@ -16,7 +16,7 @@
       error = '';
       console.log('Generating SQL for config:', config);
       const container = createContainer();
-      const generator = container.resolve(policyGeneratorBlob);
+      const generator = container.resolve(policyGenerator);
 
       const result = await generator.generate(config);
       console.log('Generation result:', result);

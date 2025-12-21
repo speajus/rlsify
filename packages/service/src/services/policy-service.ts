@@ -8,8 +8,7 @@ import type { ServiceImpl } from '@connectrpc/connect';
 import {
   hasKeyOf,
   isFunction,
-  policyValidatorBlob,
-  type PolicyValidator,
+  policyValidator,
 } from '@speajus/rlsify-core';
 import {
   PolicyServiceProto,
@@ -61,6 +60,7 @@ import {
   type SavedTestCase,
 } from '@speajus/rlsify-types';
 import { tryParseSqlExpression } from '@speajus/rlsify-core';
+import { AuggieModel, generatePolicyExpression } from './auggie-service.js';
 
 function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -71,12 +71,9 @@ function asJson(value: unknown) {
   }
 
 export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto> {
-  private pool: Pool;
-  private validator: PolicyValidator;
 
-  constructor(pool: Pool, validator: PolicyValidator = policyValidatorBlob) {
-    this.pool = pool;
-    this.validator = validator;
+  constructor(private pool: Pool, private validator = policyValidator) {
+ 
   }
 
   setPool(pool: Pool) {
@@ -940,7 +937,6 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
 
   
   async generatePolicy(request: GeneratePolicyRequest) {
-    const { generatePolicyExpression } = await import('./auggie-service.js');
 
     const tableSchema = request.tableSchema ? (asJson(request.tableSchema) ?? {}) as Record<string, unknown> : request.tableSchema;
     const result = await generatePolicyExpression({
@@ -949,7 +945,7 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
       tableName: request.tableName,
       ...(tableSchema && { tableSchema }),
       existingPolicies: request.existingPolicies,
-      ...(request.model && { model: request.model }),
+      ...(request.model && { model: request.model as AuggieModel }),
       ...(request.apiUrl && { apiUrl: request.apiUrl }),
     });
 
@@ -972,7 +968,7 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
       policyName: request.policyName,
       ...(policyExpression && { policyExpression }),
       ...(tableSchema && { tableSchema }),
-      ...(request.model && { model: request.model }),
+      ...(request.model && { model: request.model as AuggieModel }),
     });
 
     // Map operation string to PolicyCommand enum
@@ -1011,7 +1007,7 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
       tableName: request.tableName,
       ...(tableSchema && { tableSchema }),
       existingPolicies: request.existingPolicies,
-      ...(request.model && { model: request.model }),
+      ...(request.model && { model: request.model as AuggieModel }),
       ...(request.apiUrl && { apiUrl: request.apiUrl }),
     });
 

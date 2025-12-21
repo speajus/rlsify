@@ -36,3 +36,5 @@ coverage/
 .turbo/
 .cache/
 
+.vite/
+out/

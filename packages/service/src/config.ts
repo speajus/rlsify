@@ -41,9 +41,9 @@ export type ServiceConfig = z.infer<typeof ServiceConfigSchema>;
 // Configuration Blobs
 // ============================================================================
 
-export const serviceConfigBlob = createBlob<ServiceConfig>('ServiceConfig');
-export const databaseConfigBlob = createBlob<DatabaseConfig>('DatabaseConfig');
-export const grpcConfigBlob = createBlob<GrpcConfig>('GrpcConfig');
+export const serviceConfig = createBlob<ServiceConfig>('ServiceConfig');
+export const databaseConfig = createBlob<DatabaseConfig>('DatabaseConfig');
+export const grpcConfig = createBlob<GrpcConfig>('GrpcConfig');
 
 // ============================================================================
 // Configuration Loader
@@ -112,11 +112,11 @@ export function loadServiceConfig(): ServiceConfig {
 /**
  * Register configuration blobs with the DI container
  */
-export function registerConfigBlobs(container: Container): ServiceConfig {
+export function registerConfigBlobs(container: Container) {
   const config = loadServiceConfig();
 
   // Register full config
-  registerConfigBlob(container, serviceConfigBlob, {
+  registerConfigBlob(container, serviceConfig, {
     schema: ServiceConfigSchema,
     env: process.env as Record<string, string | undefined>,
     envPrefix: 'RLSIFY_',
@@ -136,9 +136,9 @@ export function registerConfigBlobs(container: Container): ServiceConfig {
   });
 
   // Register individual config sections for convenience
-  container.register(databaseConfigBlob, () => config.database);
-  container.register(grpcConfigBlob, () => config.grpc);
+  container.register(databaseConfig, () => config.database);
+  container.register(grpcConfig, () => config.grpc);
 
-  return config;
+  return container;
 }
 

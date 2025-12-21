@@ -9,26 +9,26 @@ import { Pool } from 'pg';
 import { SchemaServiceImpl } from './services/schema-service.js';
 import { PolicyServiceImpl } from './services/policy-service.js';
 import { HealthServiceImpl } from './services/health-service.js';
-import { registerConfigBlobs, type ServiceConfig } from './config.js';
-import { policyValidatorBlob } from '@speajus/rlsify-core';
+import { registerConfigBlobs, serviceConfig } from './config.js';
+import { policyValidator } from '@speajus/rlsify-core';
 
 // Re-export config types and blobs for convenience
-export { databaseConfigBlob, grpcConfigBlob } from './config.js';
+export { databaseConfig as databaseConfigBlob, grpcConfig as grpcConfigBlob } from './config.js';
 export type { DatabaseConfig, GrpcConfig, ServiceConfig } from './config.js';
 
 // ============================================================================
 // Infrastructure Blobs
 // ============================================================================
 
-export const databasePoolBlob = createBlob<PgPool>('DatabasePool');
+export const databasePool = createBlob<PgPool>('DatabasePool');
 
 // ============================================================================
 // Service Implementation Blobs
 // ============================================================================
 
-export const schemaServiceBlob = createBlob<SchemaServiceImpl>('SchemaService');
-export const policyServiceBlob = createBlob<PolicyServiceImpl>('PolicyService');
-export const healthServiceBlob = createBlob<HealthServiceImpl>('HealthService');
+export const schemaService = createBlob<SchemaServiceImpl>('SchemaService');
+export const policyService = createBlob<PolicyServiceImpl>('PolicyService');
+export const healthService = createBlob<HealthServiceImpl>('HealthService');
 
 // ============================================================================
 // Container Factory
@@ -46,27 +46,25 @@ export const healthServiceBlob = createBlob<HealthServiceImpl>('HealthService');
  * - POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
  * - GRPC_HOST, GRPC_PORT
  */
-export function createServiceContainer(): { container: ReturnType<typeof createDiblobContainer>; config: ServiceConfig } {
-  const container = createDiblobContainer();
-
+export function registerService(container = createDiblobContainer()){
   // Register configuration blobs using @speajus/diblob-config
-  const config = registerConfigBlobs(container);
+  registerConfigBlobs(container);
 
   // Create infrastructure instances eagerly
   // Register database pool
-  container.register(databasePoolBlob, Pool, {
-    host: config.database.host,
-    port: config.database.port,
-    database: config.database.database,
-    user: config.database.user,
-    password: config.database.password,
+  container.register(databasePool, Pool, {
+    host: serviceConfig.database.host,
+    port: serviceConfig.database.port,
+    database: serviceConfig.database.database,
+    user: serviceConfig.database.user,
+    password: serviceConfig.database.password,
   });
 
   // Register service implementations
-  container.register(schemaServiceBlob, SchemaServiceImpl, databasePoolBlob);
-  container.register(policyServiceBlob, PolicyServiceImpl, databasePoolBlob, policyValidatorBlob);
-  container.register(healthServiceBlob, HealthServiceImpl, databasePoolBlob);
+  container.register(schemaService, SchemaServiceImpl, databasePool);
+  container.register(policyService, PolicyServiceImpl, databasePool, policyValidator);
+  container.register(healthService, HealthServiceImpl, databasePool);
 
-  return { container, config };
+  return container;
 }
 
