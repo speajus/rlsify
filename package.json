@@ -66,5 +66,8 @@
     "vitepress": "^1.6.4",
     "vitest": "^1.2.0",
     "vue": "^3.5.25"
+  },
+  "dependencies": {
+    "@augmentcode/auggie": "^0.12.0"
   }
 }

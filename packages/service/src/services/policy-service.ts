@@ -35,6 +35,9 @@ import {
   GetTestCasesResponseSchema,
   SavedTestCaseSchema,
   ListTestCaseTablesResponseSchema,
+  GeneratePolicyResponseSchema,
+  GenerateTestsResponseSchema,
+  GeneratedTestCaseSchema,
   type PreviewPoliciesRequest,
   type ValidateConfigRequest,
   type ApplyPoliciesRequest,
@@ -48,9 +51,15 @@ import {
   type SaveTestCasesRequest,
   type GetTestCasesRequest,
   type ListTestCaseTablesRequest,
+  type GeneratePolicyRequest,
+  type GenerateTestsRequest,
   type SavedTestCase,
 } from '@speajus/rlsify-types';
 import { tryParseSqlExpression } from '@speajus/rlsify-core';
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto> {
   private pool: Pool;
@@ -652,6 +661,8 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
         command: this.mapCommand(p.command),
         using: p.using,
         withCheck: p.withCheck,
+	        usingExpression: p.usingExpression,
+	        withCheckExpression: p.withCheckExpression,
         roles: [...p.roles],
         permissive: p.permissive,
       })),
@@ -675,6 +686,8 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
         permissive: boolean;
         using?: string;
         withCheck?: string;
+	        usingExpression?: JsonObject;
+	        withCheckExpression?: JsonObject;
       } = {
         name: (p.name as string) ?? '',
         command: this.reverseMapCommand((p.command as string) ?? 'ALL'),
@@ -683,6 +696,8 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
       };
       if (p.using) policyInit.using = p.using as string;
       if (p.withCheck) policyInit.withCheck = p.withCheck as string;
+	      if (isJsonObject(p.usingExpression)) policyInit.usingExpression = p.usingExpression;
+	      if (isJsonObject(p.withCheckExpression)) policyInit.withCheckExpression = p.withCheckExpression;
       return create(PolicyDefinitionSchema, policyInit);
     });
 
@@ -912,6 +927,67 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
     }
 
     return create(ListTestCaseTablesResponseSchema, { tables });
+  }
+
+  async generatePolicy(request: GeneratePolicyRequest) {
+    const { generatePolicyExpression } = await import('./auggie-service.js');
+
+    const tableSchema = request.tableSchema ? (request.tableSchema.toJson() as Record<string, unknown>) : undefined;
+    const result = await generatePolicyExpression({
+      apiKey: request.apiKey,
+      prompt: request.prompt,
+      tableName: request.tableName,
+      ...(tableSchema && { tableSchema }),
+      existingPolicies: request.existingPolicies,
+      ...(request.model && { model: request.model }),
+      ...(request.apiUrl && { apiUrl: request.apiUrl }),
+    });
+
+    return create(GeneratePolicyResponseSchema, {
+      expression: result.expression as JsonObject,
+      explanation: result.explanation,
+    });
+  }
+
+  async generateTests(request: GenerateTestsRequest) {
+    const { generatePolicyTests } = await import('./auggie-service.js');
+
+    const policyExpression = request.policyExpression ? (request.policyExpression.toJson() as Record<string, unknown>) : undefined;
+    const tableSchema = request.tableSchema ? (request.tableSchema.toJson() as Record<string, unknown>) : undefined;
+
+    const result = await generatePolicyTests({
+      apiKey: request.apiKey,
+      prompt: request.prompt,
+      tableName: request.tableName,
+      policyName: request.policyName,
+      ...(policyExpression && { policyExpression }),
+      ...(tableSchema && { tableSchema }),
+      ...(request.model && { model: request.model }),
+    });
+
+    // Map operation string to PolicyCommand enum
+    const operationMap: Record<string, number> = {
+      'SELECT': 1,
+      'INSERT': 2,
+      'UPDATE': 3,
+      'DELETE': 4,
+      'ALL': 5,
+    };
+
+    const tests = result.map(test =>
+      create(GeneratedTestCaseSchema, {
+        testName: test.testName,
+        description: test.description,
+        userId: test.userId,
+        role: test.role,
+        claims: test.claims ? (test.claims as JsonObject) : undefined,
+        operation: operationMap[test.operation] || 0,
+        expectedResult: test.expectedResult,
+        testData: test.testData ? (test.testData as JsonObject) : undefined,
+      })
+    );
+
+    return create(GenerateTestsResponseSchema, { tests });
   }
 }
 

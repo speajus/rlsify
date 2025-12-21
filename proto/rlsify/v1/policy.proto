@@ -318,6 +318,76 @@ message ListTestCaseTablesResponse {
   map<string, int32> tables = 1;
 }
 
+// Request to generate a policy expression using AI
+message GeneratePolicyRequest {
+  // Auggie API token
+  string api_key = 1;
+  // Natural language prompt describing the policy
+  string prompt = 2;
+  // Table name
+  string table_name = 3;
+  // Optional table schema information (as JSON)
+  optional google.protobuf.Struct table_schema = 4;
+  // Optional existing policies for context
+  repeated string existing_policies = 5;
+  // Optional model name (e.g., "sonnet4.5")
+  optional string model = 6;
+  // Optional API URL (tenant URL from auggie token print)
+  optional string api_url = 7;
+}
+
+// Response with generated policy expression
+message GeneratePolicyResponse {
+  // Generated permission expression (as JSON)
+  google.protobuf.Struct expression = 1;
+  // AI explanation of the policy
+  string explanation = 2;
+}
+
+// Request to generate test cases for a policy using AI
+message GenerateTestsRequest {
+  // Auggie API token
+  string api_key = 1;
+  // Natural language prompt describing test scenarios
+  string prompt = 2;
+  // Table name
+  string table_name = 3;
+  // Policy name
+  string policy_name = 4;
+  // Optional policy expression for context (as JSON)
+  optional google.protobuf.Struct policy_expression = 5;
+  // Optional table schema information (as JSON)
+  optional google.protobuf.Struct table_schema = 6;
+  // Optional model name
+  optional string model = 7;
+}
+
+// A single generated test case
+message GeneratedTestCase {
+  // Test name
+  string test_name = 1;
+  // Test description
+  optional string description = 2;
+  // User ID for test context
+  string user_id = 3;
+  // Optional user role
+  optional string role = 4;
+  // Optional JWT claims (as JSON)
+  optional google.protobuf.Struct claims = 5;
+  // SQL operation to test
+  PolicyCommand operation = 6;
+  // Expected result
+  string expected_result = 7; // "allowed" or "denied"
+  // Optional test data (as JSON)
+  optional google.protobuf.Struct test_data = 8;
+}
+
+// Response with generated test cases
+message GenerateTestsResponse {
+  // Generated test cases
+  repeated GeneratedTestCase tests = 1;
+}
+
 // Policy management service
 service PolicyService {
   // Generate SQL preview from configuration
@@ -355,5 +425,11 @@ service PolicyService {
 
   // List all tables that have test cases
   rpc ListTestCaseTables(ListTestCaseTablesRequest) returns (ListTestCaseTablesResponse);
+
+  // Generate a policy expression using AI
+  rpc GeneratePolicy(GeneratePolicyRequest) returns (GeneratePolicyResponse);
+
+  // Generate test cases for a policy using AI
+  rpc GenerateTests(GenerateTestsRequest) returns (GenerateTestsResponse);
 }
 

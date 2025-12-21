@@ -16,24 +16,16 @@ import {
   SaveConnectionResponseSchema,
   ListConnectionsResponseSchema,
   DeleteConnectionResponseSchema,
-  DatabaseConnectionSchema,
   type ConnectDatabaseRequest,
   type DisconnectDatabaseRequest,
   type GetConnectionStatusRequest,
   type SaveConnectionRequest,
   type ListConnectionsRequest,
   type DeleteConnectionRequest,
-  type DatabaseConnection,
 } from '@speajus/rlsify-types';
 
-// In-memory storage for saved connections (in production, use a proper database)
-const savedConnections = new Map<string, DatabaseConnection>();
-let lastConnectionId: string | undefined;
-
-// Generate unique ID
-function generateId(): string {
-  return `conn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
+// Connection management has been moved to localStorage on the client side
+// The service now only handles active database connections, not saved connection configs
 
 export class ConnectionServiceImpl implements ServiceImpl<typeof ConnectionServiceProto> {
   private currentPool: Pool | null = null;
@@ -93,9 +85,8 @@ export class ConnectionServiceImpl implements ServiceImpl<typeof ConnectionServi
 
       // Connection successful
       this.currentPool = pool;
-      const connectionId = generateId();
+      const connectionId = `conn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
       this.currentConfig = { host, port, database, user, connectionId };
-      lastConnectionId = connectionId;
 
       // Notify about pool change
       this.onPoolChange?.(pool);
@@ -187,70 +178,27 @@ export class ConnectionServiceImpl implements ServiceImpl<typeof ConnectionServi
     }
   }
 
-  async saveConnection(request: SaveConnectionRequest) {
-    const { id, name, host, port, database, user, password, ssl } = request;
+  // Connection management methods (saveConnection, listConnections, deleteConnection)
+  // are deprecated as they are now handled client-side via localStorage.
+  // The service only manages active database connections.
+  // These methods are kept for backward compatibility but return empty/error responses.
 
-    const now = BigInt(Date.now());
-    let connection: DatabaseConnection;
-
-    if (id && savedConnections.has(id)) {
-      // Update existing
-      const existing = savedConnections.get(id)!;
-      connection = create(DatabaseConnectionSchema, {
-        id,
-        name,
-        host,
-        port,
-        database,
-        user,
-        password,
-        ssl,
-        createdAt: existing.createdAt,
-        lastUsedAt: now,
-      });
-    } else {
-      // Create new
-      connection = create(DatabaseConnectionSchema, {
-        id: generateId(),
-        name,
-        host,
-        port,
-        database,
-        user,
-        password,
-        ssl,
-        createdAt: now,
-        lastUsedAt: now,
-      });
-    }
-
-    savedConnections.set(connection.id, connection);
-
-    return create(SaveConnectionResponseSchema, {
-      connection,
-    });
+  async saveConnection(_request: SaveConnectionRequest) {
+    // Return empty response - connection management is now client-side
+    return create(SaveConnectionResponseSchema, {});
   }
 
   async listConnections(_request: ListConnectionsRequest) {
-    const connections = Array.from(savedConnections.values())
-      .sort((a, b) => Number(b.lastUsedAt - a.lastUsedAt)); // Most recent first
-
+    // Return empty list - connection management is now client-side
     return create(ListConnectionsResponseSchema, {
-      connections,
-      lastConnectionId: lastConnectionId!,
+      connections: [],
     });
   }
 
-  async deleteConnection(request: DeleteConnectionRequest) {
-    const { id } = request;
-    const deleted = savedConnections.delete(id);
-
-    if (lastConnectionId === id) {
-      lastConnectionId = undefined;
-    }
-
+  async deleteConnection(_request: DeleteConnectionRequest) {
+    // Return false - connection management is now client-side
     return create(DeleteConnectionResponseSchema, {
-      deleted,
+      deleted: false,
     });
   }
 }

@@ -331,6 +331,9 @@ function convertToProtoConfig(config: RLSPolicyConfig) {
       command: mapCommandToProto(p.command),
       using: p.using,
       withCheck: p.withCheck,
+      // JSON expression support (Visual/Source/AI modes)
+      usingExpression: p.usingExpression as any,
+      withCheckExpression: p.withCheckExpression as any,
       roles: p.roles ?? [],
       permissive: p.permissive ?? true,
     })),
@@ -355,6 +358,8 @@ function convertFromProtoConfig(proto: SavedPolicy['config']): RLSPolicyConfig {
       command: mapCommandFromProto(p.command),
       using: p.using,
       withCheck: p.withCheck,
+      usingExpression: p.usingExpression as any,
+      withCheckExpression: p.withCheckExpression as any,
       roles: [...p.roles],
       permissive: p.permissive,
     })),

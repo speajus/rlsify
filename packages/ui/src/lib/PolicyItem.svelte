@@ -3,6 +3,7 @@
   import { updatePolicy as updatePolicyStore } from './stores/policy-store.js';
   import PermissionBuilder from './PermissionBuilder.svelte';
   import VisualQueryBuilder from './VisualQueryBuilder.svelte';
+  import AIExpressionBuilder from './AIExpressionBuilder.svelte';
   import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
   import { Button } from '$lib/components/ui/button/index.js';
   import { Label } from '$lib/components/ui/label/index.js';
@@ -27,8 +28,8 @@
   let { policy, index, onRemove, baseTable }: Props = $props();
 
   // Initialize mode based on the policy content
-  let usingEditorMode = $state<'sql' | 'json' | 'visual'>('visual');
-  let checkEditorMode = $state<'sql' | 'json' | 'visual'>('visual');
+  let usingEditorMode = $state<'sql' | 'json' | 'visual' | 'ai'>('visual');
+  let checkEditorMode = $state<'sql' | 'json' | 'visual' | 'ai'>('visual');
 
   // Edit-in-place state for policy name
   let isEditingName = $state(false);
@@ -198,6 +199,7 @@
               }
             }}>Source</TabsTrigger>
             <TabsTrigger value="sql" class="text-xs px-2 py-1">SQL</TabsTrigger>
+            <TabsTrigger value="ai" class="text-xs px-2 py-1">AI</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -223,6 +225,18 @@
           onUpdate={updateUsingExpression}
           debugLabel="USING"
         />
+      {:else if usingEditorMode === 'ai'}
+        <AIExpressionBuilder
+          baseTable={baseTable}
+          expression={policy.usingExpression}
+          onUpdate={(expr, explanation) => {
+            updateUsingExpression(expr);
+            if (explanation) {
+              // TODO: Store explanation in policy metadata
+              console.log('AI explanation:', explanation);
+            }
+          }}
+        />
       {/if}
     </div>
 
@@ -239,6 +253,7 @@
               }
             }}>Source</TabsTrigger>
             <TabsTrigger value="sql" class="text-xs px-2 py-1">SQL</TabsTrigger>
+            <TabsTrigger value="ai" class="text-xs px-2 py-1">AI</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -263,6 +278,18 @@
           expression={policy.withCheckExpression}
           onUpdate={updateCheckExpression}
           debugLabel="WITH_CHECK"
+        />
+      {:else if checkEditorMode === 'ai'}
+        <AIExpressionBuilder
+          baseTable={baseTable}
+          expression={policy.withCheckExpression}
+          onUpdate={(expr, explanation) => {
+            updateCheckExpression(expr);
+            if (explanation) {
+              // TODO: Store explanation in policy metadata
+              console.log('AI explanation:', explanation);
+            }
+          }}
         />
       {/if}
     </div>

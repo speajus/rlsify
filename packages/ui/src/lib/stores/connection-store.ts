@@ -1,6 +1,7 @@
 /**
  * Connection store - manages database connection state
  * Uses Connect-Web client to communicate with gRPC backend
+ * Persists connection info to localStorage
  */
 
 import { writable, derived } from 'svelte/store';
@@ -22,11 +23,60 @@ interface ConnectionState {
   error: string | null;
 }
 
+// LocalStorage keys
+const STORAGE_KEY_CONNECTIONS = 'rlsify_connections';
+const STORAGE_KEY_LAST_CONNECTION = 'rlsify_last_connection_id';
+
+// Helper functions for localStorage
+function loadConnectionsFromStorage(): DatabaseConnection[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_CONNECTIONS);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Failed to load connections from localStorage:', error);
+    return [];
+  }
+}
+
+function saveConnectionsToStorage(connections: DatabaseConnection[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_CONNECTIONS, JSON.stringify(connections));
+  } catch (error) {
+    console.error('Failed to save connections to localStorage:', error);
+  }
+}
+
+function loadLastConnectionIdFromStorage(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem(STORAGE_KEY_LAST_CONNECTION);
+  } catch (error) {
+    console.error('Failed to load last connection ID from localStorage:', error);
+    return null;
+  }
+}
+
+function saveLastConnectionIdToStorage(id: string | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (id) {
+      localStorage.setItem(STORAGE_KEY_LAST_CONNECTION, id);
+    } else {
+      localStorage.removeItem(STORAGE_KEY_LAST_CONNECTION);
+    }
+  } catch (error) {
+    console.error('Failed to save last connection ID to localStorage:', error);
+  }
+}
+
+// Initialize state with data from localStorage
 const state = writable<ConnectionState>({
   connected: false,
   currentConnection: null,
-  savedConnections: [],
-  lastConnectionId: null,
+  savedConnections: loadConnectionsFromStorage(),
+  lastConnectionId: loadLastConnectionIdFromStorage(),
   loading: false,
   error: null,
 });
@@ -144,15 +194,18 @@ export async function disconnect(): Promise<void> {
 }
 
 /**
- * Load saved connections
+ * Load saved connections from localStorage
  */
 export async function loadSavedConnections(): Promise<void> {
   try {
-    const response = await connectionClient.listConnections({});
+    // Load from localStorage (primary source for web UI)
+    const connections = loadConnectionsFromStorage();
+    const lastConnectionId = loadLastConnectionIdFromStorage();
+
     state.update(s => ({
       ...s,
-      savedConnections: response.connections as DatabaseConnection[],
-      lastConnectionId: response.lastConnectionId ?? null,
+      savedConnections: connections,
+      lastConnectionId,
     }));
   } catch (error) {
     console.error('Failed to load saved connections:', error);
@@ -160,7 +213,7 @@ export async function loadSavedConnections(): Promise<void> {
 }
 
 /**
- * Save a connection
+ * Save a connection to localStorage
  */
 export async function saveConnection(params: {
   id?: string;
@@ -173,22 +226,72 @@ export async function saveConnection(params: {
   ssl?: boolean;
 }): Promise<DatabaseConnection | null> {
   try {
-    const response = await connectionClient.saveConnection({
-      id: params.id,
-      name: params.name,
-      host: params.host,
-      port: params.port,
-      database: params.database,
-      user: params.user,
-      password: params.password,
-      ssl: params.ssl ?? false,
-    });
+    const connections = loadConnectionsFromStorage();
+    const now = BigInt(Date.now());
 
-    if (response.connection) {
-      await loadSavedConnections();
-      return response.connection as DatabaseConnection;
+    let connection: DatabaseConnection;
+
+    if (params.id) {
+      // Update existing connection
+      const index = connections.findIndex(c => c.id === params.id);
+      if (index >= 0) {
+        connection = {
+          ...connections[index],
+          name: params.name,
+          host: params.host,
+          port: params.port,
+          database: params.database,
+          user: params.user,
+          password: params.password,
+          ssl: params.ssl ?? false,
+          lastUsedAt: now,
+        };
+        connections[index] = connection;
+      } else {
+        // ID provided but not found, create new
+        connection = {
+          id: params.id,
+          name: params.name,
+          host: params.host,
+          port: params.port,
+          database: params.database,
+          user: params.user,
+          password: params.password,
+          ssl: params.ssl ?? false,
+          createdAt: now,
+          lastUsedAt: now,
+        };
+        connections.push(connection);
+      }
+    } else {
+      // Create new connection
+      connection = {
+        id: `conn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+        name: params.name,
+        host: params.host,
+        port: params.port,
+        database: params.database,
+        user: params.user,
+        password: params.password,
+        ssl: params.ssl ?? false,
+        createdAt: now,
+        lastUsedAt: now,
+      };
+      connections.push(connection);
     }
-    return null;
+
+    // Save to localStorage
+    saveConnectionsToStorage(connections);
+    saveLastConnectionIdToStorage(connection.id);
+
+    // Update state
+    state.update(s => ({
+      ...s,
+      savedConnections: connections,
+      lastConnectionId: connection.id,
+    }));
+
+    return connection;
   } catch (error) {
     console.error('Failed to save connection:', error);
     return null;
@@ -196,15 +299,32 @@ export async function saveConnection(params: {
 }
 
 /**
- * Delete a saved connection
+ * Delete a saved connection from localStorage
  */
 export async function deleteConnection(id: string): Promise<boolean> {
   try {
-    const response = await connectionClient.deleteConnection({ id });
-    if (response.deleted) {
-      await loadSavedConnections();
+    const connections = loadConnectionsFromStorage();
+    const filtered = connections.filter(c => c.id !== id);
+
+    if (filtered.length < connections.length) {
+      saveConnectionsToStorage(filtered);
+
+      // Clear last connection ID if it was deleted
+      const lastConnectionId = loadLastConnectionIdFromStorage();
+      if (lastConnectionId === id) {
+        saveLastConnectionIdToStorage(null);
+      }
+
+      // Update state
+      state.update(s => ({
+        ...s,
+        savedConnections: filtered,
+        lastConnectionId: s.lastConnectionId === id ? null : s.lastConnectionId,
+      }));
+
+      return true;
     }
-    return response.deleted;
+    return false;
   } catch (error) {
     console.error('Failed to delete connection:', error);
     return false;
@@ -216,4 +336,18 @@ export async function deleteConnection(id: string): Promise<boolean> {
  */
 export function clearConnectionError(): void {
   state.update(s => ({ ...s, error: null }));
+}
+
+/**
+ * Retrieve the last used connection from localStorage
+ */
+export function retrieveLastConnection(): DatabaseConnection | null {
+  const connections = loadConnectionsFromStorage();
+  const lastConnectionId = loadLastConnectionIdFromStorage();
+
+  if (lastConnectionId && connections.length > 0) {
+    return connections.find(c => c.id === lastConnectionId) ?? null;
+  }
+
+  return null;
 }

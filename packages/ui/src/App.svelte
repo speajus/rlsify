@@ -16,7 +16,7 @@
     currentPolicyId,
   } from './lib/stores/policy-store.js';
   import { loadSchema, tables, schema, loading as schemaLoading, error as schemaError, currentSchema, availableSchemas } from './lib/stores/schema-store.js';
-  import { connected, currentConnection, checkConnectionStatus, connectionError } from './lib/stores/connection-store.js';
+  import { connected, currentConnection, checkConnectionStatus, connectionError, connect, retrieveLastConnection } from './lib/stores/connection-store.js';
   import { updateTable } from './lib/stores/policy-store.js';
   import { onMount } from 'svelte';
   import { Button } from '$lib/components/ui/button/index.js';
@@ -140,11 +140,38 @@
           loadAllTestCaseCounts(),
         ]);
       } else {
-        // Not connected - show connection dialog with any error from the status check
-        if ($connectionError) {
-          initialLoadError = $connectionError;
+        // Not connected - try to auto-connect with last saved connection
+        const lastConnection = retrieveLastConnection();
+        if (lastConnection) {
+          console.log('Auto-connecting to last used connection:', lastConnection.name);
+          const result = await connect({
+            host: lastConnection.host,
+            port: lastConnection.port,
+            database: lastConnection.database,
+            user: lastConnection.user,
+            password: lastConnection.password,
+            ssl: lastConnection.ssl,
+          });
+
+          if (result.success) {
+            // Successfully auto-connected, load data
+            await Promise.all([
+              loadSchema('public'),
+              fetchPolicies(),
+              loadAllTestCaseCounts(),
+            ]);
+          } else {
+            // Auto-connect failed - show connection dialog with error
+            initialLoadError = result.error || 'Failed to auto-connect';
+            showConnectionDialog = true;
+          }
+        } else {
+          // No saved connection - show connection dialog with any error from the status check
+          if ($connectionError) {
+            initialLoadError = $connectionError;
+          }
+          showConnectionDialog = true;
         }
-        showConnectionDialog = true;
       }
     } catch (e) {
       console.error('Failed to load data:', e);

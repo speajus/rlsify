@@ -353,7 +353,93 @@ export interface ValidationResult {
 
 // ============================================================================
 // Generation Types
+// ============================================================================
 
+// ============================================================================
+// AI-Powered Policy Generation Types
+// ============================================================================
+
+/**
+ * Test case for validating RLS policies
+ * Used by PolicyTester and AI-generated test scenarios
+ */
+export interface PolicyTest {
+  /** Unique identifier for the test case */
+  id: string;
+
+  /** Name of the policy being tested */
+  policyName: string;
+
+  /** Human-readable test name */
+  testName: string;
+
+  /** Optional description of what this test validates */
+  description?: string;
+
+  /** User context for the test */
+  userContext: {
+    /** User ID (maps to auth.uid()) */
+    userId: string;
+    /** User role (maps to auth.role()) */
+    role?: string;
+    /** Additional JWT claims */
+    claims?: Record<string, unknown>;
+  };
+
+  /** SQL operation being tested */
+  operation: PolicyCommand;
+
+  /** Expected test result */
+  expectedResult: 'allowed' | 'denied';
+
+  /** Test data (row data for the operation) */
+  testData?: Record<string, unknown>;
+
+  /** How this test was created */
+  generatedBy?: 'ai' | 'manual';
+
+  /** Timestamp when test was created */
+  createdAt?: string;
+}
+
+/**
+ * AI conversation message for policy generation
+ */
+export interface AIConversationMessage {
+  /** Message role */
+  role: 'user' | 'assistant' | 'system';
+
+  /** Message content */
+  content: string;
+
+  /** Timestamp */
+  timestamp: string;
+
+  /** Optional tool calls or results */
+  toolCalls?: Array<{
+    name: string;
+    input: unknown;
+    output?: unknown;
+  }>;
+}
+
+/**
+ * AI conversation history for a policy
+ * Stored in policy config metadata
+ */
+export interface AIConversationHistory {
+  /** Conversation messages */
+  messages: AIConversationMessage[];
+
+  /** Model used for generation */
+  model?: string;
+
+  /** When conversation started */
+  startedAt: string;
+
+  /** Last update timestamp */
+  updatedAt: string;
+}
 
 // ============================================================================
 // Template Types

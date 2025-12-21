@@ -87,40 +87,8 @@ const electronAPI = {
     return ipcRenderer.invoke('database:status');
   },
 
-  /**
-   * List all saved connections
-   */
-  listConnections(): Promise<SavedConnection[]> {
-    return ipcRenderer.invoke('database:listConnections');
-  },
-
-  /**
-   * Save a new connection or update existing one
-   */
-  saveConnection(connection: Omit<SavedConnection, 'id' | 'createdAt'> & { id?: string }): Promise<SavedConnection> {
-    return ipcRenderer.invoke('database:saveConnection', connection);
-  },
-
-  /**
-   * Delete a saved connection
-   */
-  deleteConnection(connectionId: string): Promise<void> {
-    return ipcRenderer.invoke('database:deleteConnection', connectionId);
-  },
-
-  /**
-   * Get the last used connection ID
-   */
-  getLastConnectionId(): Promise<string | null> {
-    return ipcRenderer.invoke('database:getLastConnectionId');
-  },
-
-  /**
-   * Set the last used connection ID
-   */
-  setLastConnectionId(connectionId: string): Promise<void> {
-    return ipcRenderer.invoke('database:setLastConnectionId', connectionId);
-  },
+  // Connection management has been moved to localStorage in the renderer process
+  // Only database connection/disconnection and status checking remain in IPC
 
   /**
    * Open a new window (optionally with a specific connection)

@@ -59,6 +59,10 @@
   let selectedConnectionId = $state<string | null>(null);
   let isNewConnection = $state(true);
 
+  // localStorage keys
+  const STORAGE_KEY_CONNECTIONS = 'rlsify_connections';
+  const STORAGE_KEY_LAST_CONNECTION = 'rlsify_last_connection_id';
+
   // Load saved connections and check connection on mount
   $effect(() => {
     loadSavedConnections();
@@ -73,10 +77,12 @@
     }
   });
 
-  async function loadSavedConnections() {
+  function loadSavedConnections() {
     try {
-      savedConnections = await window.electronAPI.listConnections();
-      const lastId = await window.electronAPI.getLastConnectionId();
+      const stored = localStorage.getItem(STORAGE_KEY_CONNECTIONS);
+      savedConnections = stored ? JSON.parse(stored) : [];
+
+      const lastId = localStorage.getItem(STORAGE_KEY_LAST_CONNECTION);
 
       if (lastId && savedConnections.some(c => c.id === lastId)) {
         selectConnection(lastId);
@@ -86,6 +92,22 @@
       }
     } catch (err) {
       console.error('Failed to load saved connections:', err);
+    }
+  }
+
+  function saveConnectionsToStorage(connections: SavedConnection[]) {
+    try {
+      localStorage.setItem(STORAGE_KEY_CONNECTIONS, JSON.stringify(connections));
+    } catch (err) {
+      console.error('Failed to save connections to localStorage:', err);
+    }
+  }
+
+  function setLastConnectionId(id: string) {
+    try {
+      localStorage.setItem(STORAGE_KEY_LAST_CONNECTION, id);
+    } catch (err) {
+      console.error('Failed to save last connection ID:', err);
     }
   }
 
@@ -188,6 +210,7 @@
     isConnecting = true;
 
     try {
+      // Connect to the database via electron API
       const result = await window.electronAPI.connectDatabase({
         host,
         port: Number(port),
@@ -198,9 +221,9 @@
       });
 
       if (result.success) {
-        // Save the connection
-        const saved = await window.electronAPI.saveConnection({
-          id: isNewConnection ? undefined : selectedConnectionId ?? undefined,
+        // Save the connection to localStorage
+        const connectionData: SavedConnection = {
+          id: isNewConnection ? crypto.randomUUID() : selectedConnectionId!,
           name: connectionName.trim() || `${database}@${host}`,
           host,
           port: Number(port),
@@ -208,12 +231,24 @@
           user,
           password,
           ssl,
+          createdAt: isNewConnection ? Date.now() : savedConnections.find(c => c.id === selectedConnectionId)?.createdAt ?? Date.now(),
           lastUsedAt: Date.now(),
-        });
+        };
 
-        await window.electronAPI.setLastConnectionId(saved.id);
-        await loadSavedConnections();
-        selectedConnectionId = saved.id;
+        // Update or add connection in the list
+        if (isNewConnection) {
+          savedConnections = [...savedConnections, connectionData];
+        } else {
+          savedConnections = savedConnections.map(c =>
+            c.id === connectionData.id ? connectionData : c
+          );
+        }
+
+        // Save to localStorage
+        saveConnectionsToStorage(savedConnections);
+        setLastConnectionId(connectionData.id);
+
+        selectedConnectionId = connectionData.id;
         isNewConnection = false;
 
         await checkConnectionStatus();
@@ -239,13 +274,17 @@
     }
   }
 
-  async function handleDeleteConnection(id: string) {
+  function handleDeleteConnection(id: string) {
     if (!confirm('Are you sure you want to delete this saved connection?')) return;
 
     try {
-      await window.electronAPI.deleteConnection(id);
-      await loadSavedConnections();
+      // Remove from the list
+      savedConnections = savedConnections.filter(c => c.id !== id);
 
+      // Save to localStorage
+      saveConnectionsToStorage(savedConnections);
+
+      // If we deleted the currently selected connection, select another one
       if (selectedConnectionId === id) {
         if (savedConnections.length > 0) {
           selectConnection(savedConnections[0].id);

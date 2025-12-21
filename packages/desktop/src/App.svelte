@@ -1,5 +1,5 @@
 <script lang="ts">
-  import DatabaseConnection from './components/DatabaseConnection.svelte';
+  import ConnectionDialog from '@ui/ConnectionDialog.svelte';
   import PolicyEditor from '@ui/PolicyEditor.svelte';
   import SQLPreview from '@ui/SQLPreview.svelte';
   import ExistingPoliciesImporter from '@ui/ExistingPoliciesImporter.svelte';
@@ -13,6 +13,13 @@
     resetConfig,
   } from '@ui/stores/policy-store.js';
   import { loadSchema, schema, loading as schemaLoading, error as schemaError } from '@ui/stores/schema-store.js';
+  import {
+    connected,
+    currentConnection,
+    savedConnections,
+    connect,
+    disconnect,
+  } from '@ui/stores/connection-store.js';
   import { Button } from '@ui/components/ui/button/index.js';
   import { Card, CardContent, CardHeader, CardTitle } from '@ui/components/ui/card/index.js';
   import { Alert, AlertDescription } from '@ui/components/ui/alert/index.js';
@@ -34,80 +41,55 @@
   import Database from 'lucide-svelte/icons/database';
   import Settings from 'lucide-svelte/icons/settings';
   import LogOut from 'lucide-svelte/icons/log-out';
-  import ExternalLink from 'lucide-svelte/icons/external-link';
+  import type { DatabaseConnection } from '@speajus/rlsify-types';
 
-  interface SavedConnection {
-    id: string;
-    name: string;
-    host: string;
-    port: number;
-    database: string;
-    user: string;
-    password: string;
-    ssl: boolean;
-  }
-
-  // Connection state
-  let isConnected = $state(false);
+  // UI state
   let showPreview = $state(false);
   let showSavedPolicies = $state(false);
   let showImportPolicies = $state(false);
   let showConnectionDialog = $state(false);
-  let currentDb = $state<{ database?: string; host?: string; port?: number; user?: string }>({});
-  let savedConnections = $state<SavedConnection[]>([]);
 
-  // Check connection status on mount and listen for new window connections
+  // Auto-connect on mount if we have a saved connection
   $effect(() => {
-    checkConnection();
-    loadSavedConnections();
-
-    // Listen for connect-to-database event (when opened from another window)
-    window.electronAPI.onConnectToDatabase(async (connectionId: string) => {
-      try {
-        const connections = await window.electronAPI.listConnections();
-        const conn = connections.find((c: { id: string }) => c.id === connectionId);
-        if (conn) {
-          const result = await window.electronAPI.connectDatabase({
-            host: conn.host,
-            port: conn.port,
-            database: conn.database,
-            user: conn.user,
-            password: conn.password,
-            ssl: conn.ssl,
-          });
-          if (result.success) {
-            await handleConnected();
-          }
-        }
-      } catch (e) {
-        console.error('Failed to auto-connect:', e);
-      }
-    });
+    autoConnect();
   });
 
-  async function loadSavedConnections() {
-    try {
-      savedConnections = await window.electronAPI.listConnections();
-    } catch (e) {
-      console.error('Failed to load saved connections:', e);
-    }
-  }
+  async function autoConnect() {
+    // Try to auto-connect using last saved connection from localStorage
+    if (!$connected) {
+      const lastConnectionId = localStorage.getItem('rlsify_last_connection_id');
+      if (lastConnectionId) {
+        try {
+          const stored = localStorage.getItem('rlsify_connections');
+          const connections: DatabaseConnection[] = stored ? JSON.parse(stored) : [];
+          const lastConnection = connections.find(c => c.id === lastConnectionId);
 
-  async function checkConnection() {
-    try {
-      const status = await window.electronAPI.getDatabaseStatus();
-      isConnected = status.connected;
-      if (isConnected) {
-        currentDb = {
-          database: status.database,
-          host: status.host,
-          port: status.port,
-          user: status.user,
-        };
-        await Promise.all([loadSchema('public'), fetchPolicies()]);
+          if (lastConnection) {
+            console.log('Auto-connecting to last used connection:', lastConnection.name);
+            const result = await connect({
+              host: lastConnection.host,
+              port: lastConnection.port,
+              database: lastConnection.database,
+              user: lastConnection.user,
+              password: lastConnection.password,
+              ssl: lastConnection.ssl,
+            });
+
+            if (result.success) {
+              await Promise.all([loadSchema('public'), fetchPolicies()]);
+            } else {
+              showConnectionDialog = true;
+            }
+          } else {
+            showConnectionDialog = true;
+          }
+        } catch (e) {
+          console.error('Failed to auto-connect:', e);
+          showConnectionDialog = true;
+        }
+      } else {
+        showConnectionDialog = true;
       }
-    } catch (e) {
-      console.error('Failed to check connection:', e);
     }
   }
 
@@ -128,30 +110,16 @@
 
   async function handleConnected() {
     console.log('Database connected, loading data...');
-    isConnected = true;
     showConnectionDialog = false;
     try {
-      const status = await window.electronAPI.getDatabaseStatus();
-      currentDb = {
-        database: status.database,
-        host: status.host,
-        port: status.port,
-        user: status.user,
-      };
-      await Promise.all([loadSchema('public'), fetchPolicies(), loadSavedConnections()]);
+      await Promise.all([loadSchema('public'), fetchPolicies()]);
     } catch (e) {
       console.error('Failed to load data after connection:', e);
     }
   }
 
   async function handleDisconnect() {
-    try {
-      await window.electronAPI.disconnectDatabase();
-    } catch (e) {
-      console.error('Failed to disconnect:', e);
-    }
-    isConnected = false;
-    currentDb = {};
+    await disconnect();
     showConnectionDialog = false;
   }
 
@@ -159,9 +127,9 @@
     showConnectionDialog = true;
   }
 
-  async function switchToConnection(conn: SavedConnection) {
+  async function switchToConnection(conn: DatabaseConnection) {
     try {
-      const result = await window.electronAPI.connectDatabase({
+      const result = await connect({
         host: conn.host,
         port: conn.port,
         database: conn.database,
@@ -170,19 +138,12 @@
         ssl: conn.ssl,
       });
       if (result.success) {
-        await window.electronAPI.setLastConnectionId(conn.id);
-        await handleConnected();
+        // Update last connection ID in localStorage
+        localStorage.setItem('rlsify_last_connection_id', conn.id);
+        await Promise.all([loadSchema('public'), fetchPolicies()]);
       }
     } catch (e) {
       console.error('Failed to switch connection:', e);
-    }
-  }
-
-  async function openInNewWindow(conn: SavedConnection) {
-    try {
-      await window.electronAPI.openNewWindow(conn.id);
-    } catch (e) {
-      console.error('Failed to open in new window:', e);
     }
   }
 </script>
@@ -194,28 +155,22 @@
     </h1>
     <p class="text-muted-foreground">PostgreSQL Row-Level Security Policy Builder</p>
 
-    {#if isConnected && currentDb.database}
+    {#if $connected && $currentConnection}
       <div class="mt-4 flex items-center justify-center gap-3">
         <DropdownMenu>
           <DropdownMenuTrigger>
             <Button variant="outline" size="sm" class="gap-2">
               <Database class="h-4 w-4 text-green-400" />
-              <span>{currentDb.user}@{currentDb.host}:{currentDb.port}/{currentDb.database}</span>
+              <span>{$currentConnection.user}@{$currentConnection.host}:{$currentConnection.port}/{$currentConnection.database}</span>
               <ChevronDown class="h-4 w-4 opacity-50" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="center">
-            {#if savedConnections.length > 0}
-              {#each savedConnections as conn}
+            {#if $savedConnections.length > 0}
+              {#each $savedConnections as conn}
                 <DropdownMenuItem onclick={() => switchToConnection(conn)}>
                   <Database class="h-4 w-4 mr-2" />
                   <span class="flex-1">{conn.name}</span>
-                  <button
-                    class="ml-2 p-1 hover:bg-muted rounded"
-                    onclick={(e) => { e.stopPropagation(); openInNewWindow(conn); }}
-                  >
-                    <ExternalLink class="h-3 w-3 opacity-50" />
-                  </button>
                 </DropdownMenuItem>
               {/each}
               <DropdownMenuSeparator />
@@ -235,11 +190,14 @@
     {/if}
   </header>
 
-  {#if !isConnected || showConnectionDialog}
-    <div class="flex justify-center items-center min-h-[400px]">
-      <DatabaseConnection onconnect={handleConnected} ondisconnect={handleDisconnect} />
-    </div>
-  {:else}
+  <!-- Connection Dialog -->
+  <ConnectionDialog
+    open={showConnectionDialog || !$connected}
+    onClose={() => showConnectionDialog = false}
+    onConnected={handleConnected}
+  />
+
+  {#if $connected}
     <div class="flex flex-col gap-6">
       <!-- Toolbar -->
       <Card class="border-border">

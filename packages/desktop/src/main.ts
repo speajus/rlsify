@@ -48,10 +48,7 @@ const store = new Store<StoreSchema>({
   },
 });
 
-// Helper to generate unique IDs
-function generateId(): string {
-  return `conn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
+
 
 // ============================================================================
 // Simple Local Service Registry (avoiding diblob-connect blob issues)
@@ -356,78 +353,8 @@ ipcMain.handle('database:status', () => {
   return { connected: false };
 });
 
-/**
- * Get all saved connections
- */
-ipcMain.handle('database:listConnections', () => {
-  return store.get('connections') ?? [];
-});
-
-/**
- * Save a new connection or update existing one
- */
-ipcMain.handle('database:saveConnection', (_event, connection: Omit<SavedConnection, 'id' | 'createdAt'> & { id?: string }) => {
-  const connections = store.get('connections') ?? [];
-
-  if (connection.id) {
-    // Update existing connection
-    const index = connections.findIndex(c => c.id === connection.id);
-    if (index !== -1) {
-      connections[index] = {
-        ...connections[index],
-        ...connection,
-        id: connection.id,
-      };
-      store.set('connections', connections);
-      return connections[index];
-    }
-  }
-
-  // Create new connection
-  const newConnection: SavedConnection = {
-    id: generateId(),
-    name: connection.name,
-    host: connection.host,
-    port: connection.port,
-    database: connection.database,
-    user: connection.user,
-    password: connection.password,
-    ssl: connection.ssl,
-    createdAt: Date.now(),
-  };
-
-  connections.push(newConnection);
-  store.set('connections', connections);
-  return newConnection;
-});
-
-/**
- * Delete a saved connection
- */
-ipcMain.handle('database:deleteConnection', (_event, connectionId: string) => {
-  const connections = store.get('connections') ?? [];
-  const filtered = connections.filter(c => c.id !== connectionId);
-  store.set('connections', filtered);
-
-  // Clear lastConnectionId if it was the deleted one
-  if (store.get('lastConnectionId') === connectionId) {
-    store.delete('lastConnectionId');
-  }
-});
-
-/**
- * Get the last used connection ID
- */
-ipcMain.handle('database:getLastConnectionId', () => {
-  return store.get('lastConnectionId') ?? null;
-});
-
-/**
- * Set the last used connection ID
- */
-ipcMain.handle('database:setLastConnectionId', (_event, connectionId: string) => {
-  store.set('lastConnectionId', connectionId);
-});
+// Connection management has been moved to localStorage in the renderer process
+// Connection info is now stored client-side and only sent to the service when connecting
 
 /**
  * Open a new window (optionally with a specific connection)

@@ -85,10 +85,29 @@
     }
   });
 
-  // Load saved connections on mount
+  // Load saved connections and auto-select last used connection when dialog opens
   $effect(() => {
     if (open) {
+      // Load connections from localStorage
       loadSavedConnections();
+
+      // Auto-select last used connection if available and we're in new connection mode
+      if (isNewConnection && typeof window !== 'undefined') {
+        const lastConnectionId = localStorage.getItem('rlsify_last_connection_id');
+        if (lastConnectionId) {
+          // Read directly from localStorage to avoid reactive dependency
+          try {
+            const stored = localStorage.getItem('rlsify_connections');
+            const connections = stored ? JSON.parse(stored) : [];
+            const lastConnection = connections.find((c: DatabaseConnection) => c.id === lastConnectionId);
+            if (lastConnection) {
+              selectConnection(lastConnection);
+            }
+          } catch (e) {
+            console.error('Failed to load last connection:', e);
+          }
+        }
+      }
     }
   });
 
@@ -129,19 +148,19 @@
     });
 
     if (result.success) {
-      // Save connection if it has a name
-      if (connectionName.trim()) {
-        await saveConnection({
-          id: isNewConnection ? undefined : selectedConnectionId ?? undefined,
-          name: connectionName.trim(),
-          host,
-          port: Number(port),
-          database,
-          user,
-          password,
-          ssl,
-        });
-      }
+      // Always save the connection, auto-generate name if not provided
+      const name = connectionName.trim() || `${database}@${host}`;
+      await saveConnection({
+        id: isNewConnection ? undefined : selectedConnectionId ?? undefined,
+        name,
+        host,
+        port: Number(port),
+        database,
+        user,
+        password,
+        ssl,
+      });
+
       onConnected?.();
       onClose();
     }
