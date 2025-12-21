@@ -263,6 +263,61 @@ message TestPoliciesResponse {
   optional string error = 2;
 }
 
+// A saved test case for policy testing
+message SavedTestCase {
+  // Unique identifier
+  string id = 1;
+  // Human-readable name
+  string name = 2;
+  // PostgreSQL role to test as
+  string role = 3;
+  // User ID for auth.uid()
+  string user_id = 4;
+  // JWT claims as JSON string
+  string claims = 5;
+  // Sample row data as JSON string
+  string row_data = 6;
+  // Operation to test
+  PolicyCommand operation = 7;
+  // Expected outcome
+  string expected_outcome = 8;  // 'allow' or 'deny'
+}
+
+// Request to save test cases for a table
+message SaveTestCasesRequest {
+  // Table identifier (schema.table format)
+  string table = 1;
+  // Test cases to save
+  repeated SavedTestCase test_cases = 2;
+}
+
+// Response after saving test cases
+message SaveTestCasesResponse {
+  // Whether the save was successful
+  bool success = 1;
+}
+
+// Request to get test cases for a table
+message GetTestCasesRequest {
+  // Table identifier (schema.table format)
+  string table = 1;
+}
+
+// Response with test cases for a table
+message GetTestCasesResponse {
+  // Test cases for the table
+  repeated SavedTestCase test_cases = 1;
+}
+
+// Request to list all tables that have test cases
+message ListTestCaseTablesRequest {}
+
+// Response with tables that have test cases
+message ListTestCaseTablesResponse {
+  // Map of table name to test case count
+  map<string, int32> tables = 1;
+}
+
 // Policy management service
 service PolicyService {
   // Generate SQL preview from configuration
@@ -291,5 +346,14 @@ service PolicyService {
 
   // Test policies against sample data using PostgreSQL evaluation
   rpc TestPolicies(TestPoliciesRequest) returns (TestPoliciesResponse);
+
+  // Save test cases for a table
+  rpc SaveTestCases(SaveTestCasesRequest) returns (SaveTestCasesResponse);
+
+  // Get test cases for a table
+  rpc GetTestCases(GetTestCasesRequest) returns (GetTestCasesResponse);
+
+  // List all tables that have test cases
+  rpc ListTestCaseTables(ListTestCaseTablesRequest) returns (ListTestCaseTablesResponse);
 }
 

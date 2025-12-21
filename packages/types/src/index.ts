@@ -669,6 +669,21 @@ export {
   type PolicyTestResult,
   type TestPoliciesRequest,
   type TestPoliciesResponse,
+  // Saved test cases
+  SavedTestCaseSchema,
+  SaveTestCasesRequestSchema,
+  SaveTestCasesResponseSchema,
+  GetTestCasesRequestSchema,
+  GetTestCasesResponseSchema,
+  ListTestCaseTablesRequestSchema,
+  ListTestCaseTablesResponseSchema,
+  type SavedTestCase,
+  type SaveTestCasesRequest,
+  type SaveTestCasesResponse,
+  type GetTestCasesRequest,
+  type GetTestCasesResponse,
+  type ListTestCaseTablesRequest,
+  type ListTestCaseTablesResponse,
 } from './gen/rlsify/v1/policy_pb.js';
 
 export {

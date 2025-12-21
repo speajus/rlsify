@@ -16,13 +16,26 @@
   import Trash2 from 'lucide-svelte/icons/trash-2';
   import Loader2 from 'lucide-svelte/icons/loader-2';
 
+  export interface TestCase {
+    id: string;
+    name: string;
+    role: string;
+    userId: string;
+    claims: string;
+    rowData: string;
+    operation: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE';
+    expectedOutcome: 'allow' | 'deny';
+  }
+
   interface Props {
     policies: PolicyDefinition[];
     tableInfo?: TableInfo;
     tableName: string;
+    testCases?: TestCase[];
+    onTestsChange?: (tests: TestCase[]) => void;
   }
 
-  let { policies, tableInfo, tableName }: Props = $props();
+  let { policies, tableInfo, tableName, testCases: initialTestCases = [], onTestsChange }: Props = $props();
 
   // Use valid UUIDs for testing (auth.uid() returns UUID type in PostgreSQL)
   const DEFAULT_USER_ID = '550e8400-e29b-41d4-a716-446655440000';
@@ -76,22 +89,22 @@
     }
   });
 
-  interface TestCase {
-    id: string;
-    name: string;
-    role: string;
-    userId: string;
-    claims: string;
-    rowData: string;
-    operation: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE';
-    expectedOutcome: 'allow' | 'deny';
-  }
-
-  let testCases = $state<TestCase[]>([]);
+  // Use test cases from props directly - the prop contains the persisted state
+  let testCases = $state<TestCase[]>(initialTestCases);
   // Map from test scenario ID to array of PolicyTestResult
   let testResults = $state<Map<string, PolicyTestResult[]>>(new Map());
   const availableRoles = ['public', 'authenticated', 'anon', 'service_role', 'postgres'];
   const operations = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'] as const;
+
+  // Track the previous initialTestCases reference to detect when prop actually changes
+  let lastInitialTestCases: TestCase[] | undefined;
+  $effect.pre(() => {
+    // Only sync if the prop reference actually changed (not due to our own updates)
+    if (initialTestCases !== lastInitialTestCases) {
+      lastInitialTestCases = initialTestCases;
+      testCases = [...initialTestCases];
+    }
+  });
 
   $effect(() => {
     if (tableInfo?.columns) {
@@ -243,6 +256,11 @@
     }
   }
 
+  function notifyTestsChange() {
+    // Pass full test cases to parent for persistence
+    onTestsChange?.([...testCases]);
+  }
+
   function addTestCase(expectedOutcome: 'allow' | 'deny' = 'allow') {
     const isNegativeCase = expectedOutcome === 'deny';
     // For negative cases, use a different user ID to simulate unauthorized access
@@ -257,14 +275,18 @@
       operation: testOperation,
       expectedOutcome,
     }];
+    notifyTestsChange();
   }
 
   function removeTestCase(id: string) {
     testCases = testCases.filter(tc => tc.id !== id);
+    notifyTestsChange();
   }
 
   function updateTestCase(id: string, updates: Partial<TestCase>) {
     testCases = testCases.map(tc => tc.id === id ? { ...tc, ...updates } : tc);
+    // Always notify so changes are persisted
+    notifyTestsChange();
   }
 </script>
 

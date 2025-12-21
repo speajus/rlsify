@@ -4,6 +4,7 @@
   import ExistingPoliciesImporter from './lib/ExistingPoliciesImporter.svelte';
   import PolicyTreeView from './lib/PolicyTreeView.svelte';
   import ConnectionDialog from './lib/ConnectionDialog.svelte';
+  import PolicyTester, { type TestCase } from './lib/PolicyTester.svelte';
   import {
     policyConfig,
     fetchPolicies,
@@ -14,7 +15,7 @@
     resetConfig,
     currentPolicyId,
   } from './lib/stores/policy-store.js';
-  import { loadSchema, tables, loading as schemaLoading, error as schemaError, currentSchema, availableSchemas } from './lib/stores/schema-store.js';
+  import { loadSchema, tables, schema, loading as schemaLoading, error as schemaError, currentSchema, availableSchemas } from './lib/stores/schema-store.js';
   import { connected, currentConnection, checkConnectionStatus, connectionError } from './lib/stores/connection-store.js';
   import { updateTable } from './lib/stores/policy-store.js';
   import { onMount } from 'svelte';
@@ -26,8 +27,97 @@
   import AlertCircle from 'lucide-svelte/icons/alert-circle';
   import Database from 'lucide-svelte/icons/database';
   import Plus from 'lucide-svelte/icons/plus';
-  import PanelLeftClose from 'lucide-svelte/icons/panel-left-close';
-  import PanelLeft from 'lucide-svelte/icons/panel-left';
+  import ChevronLeft from 'lucide-svelte/icons/chevron-left';
+  import ChevronRight from 'lucide-svelte/icons/chevron-right';
+  import { policyClient } from './lib/api/client.js';
+  import { PolicyCommand } from '@speajus/rlsify-types';
+
+  // View mode: 'editor' or 'tester'
+  type ViewMode = 'editor' | 'tester';
+  let viewMode = $state<ViewMode>('editor');
+  let selectedTestTable = $state<string | null>(null);
+
+  // Track full test cases per table for persistence
+  let testsByTable = $state<Map<string, TestCase[]>>(new Map());
+
+  // Load test cases for a specific table from the API
+  async function loadTestCasesForTable(tableName: string): Promise<TestCase[]> {
+    try {
+      const response = await policyClient.getTestCases({ table: tableName });
+      return response.testCases.map(tc => ({
+        id: tc.id,
+        name: tc.name,
+        role: tc.role,
+        userId: tc.userId,
+        claims: tc.claims,
+        rowData: tc.rowData,
+        operation: policyCommandToOperation(tc.operation),
+        expectedOutcome: tc.expectedOutcome as 'allow' | 'deny',
+      }));
+    } catch (e) {
+      console.error('Failed to load test cases:', e);
+      return [];
+    }
+  }
+
+  // Convert PolicyCommand enum to operation string
+  function policyCommandToOperation(cmd: PolicyCommand): 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' {
+    switch (cmd) {
+      case PolicyCommand.INSERT: return 'INSERT';
+      case PolicyCommand.UPDATE: return 'UPDATE';
+      case PolicyCommand.DELETE: return 'DELETE';
+      default: return 'SELECT';
+    }
+  }
+
+  // Convert operation string to PolicyCommand enum
+  function operationToPolicyCommand(op: string): PolicyCommand {
+    switch (op) {
+      case 'INSERT': return PolicyCommand.INSERT;
+      case 'UPDATE': return PolicyCommand.UPDATE;
+      case 'DELETE': return PolicyCommand.DELETE;
+      default: return PolicyCommand.SELECT;
+    }
+  }
+
+  // Save test cases to the API
+  async function saveTestCasesToApi(tableName: string, tests: TestCase[]) {
+    try {
+      await policyClient.saveTestCases({
+        table: tableName,
+        testCases: tests.map(tc => ({
+          id: tc.id,
+          name: tc.name,
+          role: tc.role,
+          userId: tc.userId,
+          claims: tc.claims,
+          rowData: tc.rowData,
+          operation: operationToPolicyCommand(tc.operation),
+          expectedOutcome: tc.expectedOutcome,
+        })),
+      });
+    } catch (e) {
+      console.error('Failed to save test cases:', e);
+    }
+  }
+
+  // Load all test case counts on mount
+  async function loadAllTestCaseCounts() {
+    try {
+      const response = await policyClient.listTestCaseTables({});
+      const newMap = new Map<string, TestCase[]>();
+      // Load full test cases for each table that has tests
+      for (const [tableName, _count] of Object.entries(response.tables)) {
+        const tests = await loadTestCasesForTable(tableName);
+        if (tests.length > 0) {
+          newMap.set(tableName, tests);
+        }
+      }
+      testsByTable = newMap;
+    } catch (e) {
+      console.error('Failed to load test case counts:', e);
+    }
+  }
 
   let showPreview = $state(false);
   let showImportPolicies = $state(false);
@@ -42,11 +132,12 @@
       // First check if we're already connected
       await checkConnectionStatus();
 
-      // If connected, load schema and policies
+      // If connected, load schema, policies, and test cases
       if ($connected) {
         await Promise.all([
           loadSchema('public'),
           fetchPolicies(),
+          loadAllTestCaseCounts(),
         ]);
       } else {
         // Not connected - show connection dialog with any error from the status check
@@ -75,10 +166,6 @@
     }
   });
 
-  async function handleLoadPolicy(id: string) {
-    await fetchPolicy(id);
-  }
-
   async function handleDeletePolicy(id: string) {
     await deletePolicy(id);
   }
@@ -89,6 +176,27 @@
 
   function handleSelectTable(tableName: string) {
     updateTable(tableName);
+    viewMode = 'editor';
+  }
+
+  function handleSelectPolicy(id: string) {
+    fetchPolicy(id);
+    viewMode = 'editor';
+  }
+
+  function handleSelectTests(tableName: string) {
+    selectedTestTable = tableName;
+    viewMode = 'tester';
+  }
+
+  function handleTestsChange(tests: TestCase[]) {
+    if (selectedTestTable) {
+      const newMap = new Map(testsByTable);
+      newMap.set(selectedTestTable, tests);
+      testsByTable = newMap;
+      // Persist to database
+      saveTestCasesToApi(selectedTestTable, tests);
+    }
   }
 
   async function handleChangeSchema(schemaName: string) {
@@ -108,6 +216,18 @@
       fetchPolicies(),
     ]);
   }
+
+  // Derived values for PolicyTester
+  let testerTableName = $derived(selectedTestTable || '');
+  let testerTableInfo = $derived($schema?.tables.find(t => `${t.schema}.${t.name}` === testerTableName));
+  // Get policies for the selected test table
+  let testerPolicies = $derived.by(() => {
+    if (!selectedTestTable) return [];
+    const tablePolicies = $savedPolicies.filter(p => p.config?.table === selectedTestTable);
+    return tablePolicies.flatMap(p => p.config?.policies || []);
+  });
+  // Get test cases for the selected table
+  let testerTestCases = $derived(selectedTestTable ? testsByTable.get(selectedTestTable) ?? [] : []);
 </script>
 
 <div class="min-h-screen flex flex-col">
@@ -136,9 +256,9 @@
           title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {#if sidebarCollapsed}
-            <PanelLeft class="h-4 w-4 text-muted-foreground" />
+            <ChevronRight class="h-4 w-4 text-muted-foreground" />
           {:else}
-            <PanelLeftClose class="h-4 w-4 text-muted-foreground" />
+            <ChevronLeft class="h-4 w-4 text-muted-foreground" />
           {/if}
         </button>
       </div>
@@ -175,11 +295,13 @@
               schemaLoading={$schemaLoading}
               connected={$connected}
               currentDatabase={$currentConnection?.database ?? null}
+              {testsByTable}
               onSelectTable={handleSelectTable}
-              onSelectPolicy={handleLoadPolicy}
+              onSelectPolicy={handleSelectPolicy}
               onDeletePolicy={handleDeletePolicy}
               onChangeSchema={handleChangeSchema}
               onOpenConnectionDialog={handleOpenConnectionDialog}
+              onSelectTests={handleSelectTests}
             />
           {/if}
         </div>
@@ -197,33 +319,44 @@
           </Alert>
         {/if}
 
-        <!-- Policy Editor -->
-        <PolicyEditor />
+        {#if viewMode === 'tester'}
+          <!-- Policy Tester View -->
+          <PolicyTester
+            policies={testerPolicies}
+            tableInfo={testerTableInfo}
+            tableName={testerTableName}
+            testCases={testerTestCases}
+            onTestsChange={handleTestsChange}
+          />
+        {:else}
+          <!-- Policy Editor View -->
+          <PolicyEditor />
 
-        <!-- Preview Toggle -->
-        <div class="flex justify-center">
-          <Button variant="outline" onclick={() => showPreview = !showPreview}>
-            {showPreview ? 'Hide' : 'Show'} SQL Preview
-          </Button>
-        </div>
-
-        {#if showPreview}
-          <SQLPreview config={$policyConfig} />
-        {/if}
-
-        <!-- Import from DB - moved to bottom -->
-        <Card class="border-border">
-          <CardContent class="p-3">
-            <Button variant="outline" onclick={() => showImportPolicies = !showImportPolicies}>
-              <Database class="mr-2 h-4 w-4" />
-              Import from DB
-              <ChevronDown class="ml-2 h-4 w-4 transition-transform {showImportPolicies ? 'rotate-180' : ''}" />
+          <!-- Preview Toggle -->
+          <div class="flex justify-center">
+            <Button variant="outline" onclick={() => showPreview = !showPreview}>
+              {showPreview ? 'Hide' : 'Show'} SQL Preview
             </Button>
-          </CardContent>
-        </Card>
+          </div>
 
-        {#if showImportPolicies}
-          <ExistingPoliciesImporter />
+          {#if showPreview}
+            <SQLPreview config={$policyConfig} />
+          {/if}
+
+          <!-- Import from DB - moved to bottom -->
+          <Card class="border-border">
+            <CardContent class="p-3">
+              <Button variant="outline" onclick={() => showImportPolicies = !showImportPolicies}>
+                <Database class="mr-2 h-4 w-4" />
+                Import from DB
+                <ChevronDown class="ml-2 h-4 w-4 transition-transform {showImportPolicies ? 'rotate-180' : ''}" />
+              </Button>
+            </CardContent>
+          </Card>
+
+          {#if showImportPolicies}
+            <ExistingPoliciesImporter />
+          {/if}
         {/if}
       </div>
     </main>

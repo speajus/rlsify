@@ -1,17 +1,11 @@
 <script lang="ts">
   import { policyConfig, addPolicy, removePolicy, savePolicy, fetchPolicies, policySaving, currentPolicyId, hasUnsavedChanges, policyDescription, updateDescription } from './stores/policy-store.js';
-  import { schema } from './stores/schema-store.js';
   import PolicyItem from './PolicyItem.svelte';
-  import PolicyTester from './PolicyTester.svelte';
   import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
   import { Button } from '$lib/components/ui/button/index.js';
   import Plus from 'lucide-svelte/icons/plus';
-  import FlaskConical from 'lucide-svelte/icons/flask-conical';
-  import ChevronDown from 'lucide-svelte/icons/chevron-down';
   import Save from 'lucide-svelte/icons/save';
   import Loader2 from 'lucide-svelte/icons/loader-2';
-
-  let showTester = $state(false);
 
   // Derive table name from policy config
   let tableName = $derived($policyConfig.table || '');
@@ -97,25 +91,6 @@
 
     </div>
 
-    <!-- Policy Tester Section -->
-    {#if $policyConfig.policies.length > 0}
-      <div class="space-y-2">
-        <Button variant="outline" class="w-full justify-between" onclick={() => showTester = !showTester}>
-          <span class="flex items-center gap-2">
-            <FlaskConical class="h-4 w-4" />
-            Policy Tester
-          </span>
-          <ChevronDown class="h-4 w-4 transition-transform {showTester ? 'rotate-180' : ''}" />
-        </Button>
-        {#if showTester}
-          <PolicyTester
-            policies={$policyConfig.policies}
-            tableInfo={$schema?.tables.find(t => `${t.schema}.${t.name}` === tableName)}
-            {tableName}
-          />
-        {/if}
-      </div>
-    {/if}
   </CardContent>
 </Card>
 

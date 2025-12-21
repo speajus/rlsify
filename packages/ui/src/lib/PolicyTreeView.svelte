@@ -12,6 +12,7 @@
   import Loader2 from 'lucide-svelte/icons/loader-2';
   import Plug from 'lucide-svelte/icons/plug';
   import PlugZap from 'lucide-svelte/icons/plug-zap';
+  import FlaskConical from 'lucide-svelte/icons/flask-conical';
 
   interface Props {
     tables: TableInfo[];
@@ -23,20 +24,24 @@
     schemaLoading: boolean;
     connected: boolean;
     currentDatabase: string | null;
+    /** Map of table name to tests array */
+    testsByTable?: Map<string, { id: string; name: string }[]>;
     onSelectTable: (tableName: string) => void;
     onSelectPolicy: (id: string) => void;
     onDeletePolicy: (id: string) => void;
     onChangeSchema: (schema: string) => void;
     onOpenConnectionDialog: () => void;
+    onSelectTests?: (tableName: string) => void;
   }
 
-  let { tables, policies, currentPolicyId, selectedTable, currentSchema, availableSchemas, schemaLoading, connected, currentDatabase, onSelectTable, onSelectPolicy, onDeletePolicy, onChangeSchema, onOpenConnectionDialog }: Props = $props();
+  let { tables, policies, currentPolicyId, selectedTable, currentSchema, availableSchemas, schemaLoading, connected, currentDatabase, testsByTable = new Map(), onSelectTable, onSelectPolicy, onDeletePolicy, onChangeSchema, onOpenConnectionDialog, onSelectTests }: Props = $props();
 
   // Track expanded tables
   let expandedTables = $state<Set<string>>(new Set());
-  // Track expanded sub-branches (columns, policies) per table
+  // Track expanded sub-branches (columns, policies, tests) per table
   let expandedColumns = $state<Set<string>>(new Set());
   let expandedPolicies = $state<Set<string>>(new Set());
+  let expandedTests = $state<Set<string>>(new Set());
 
   // Group policies by table name
   let policiesByTable = $derived.by(() => {
@@ -84,8 +89,21 @@
     expandedPolicies = new Set(expandedPolicies);
   }
 
+  function toggleTests(tableName: string) {
+    if (expandedTests.has(tableName)) {
+      expandedTests.delete(tableName);
+    } else {
+      expandedTests.add(tableName);
+    }
+    expandedTests = new Set(expandedTests);
+  }
+
   function handleSelectTable(tableName: string) {
     onSelectTable(tableName);
+  }
+
+  function handleSelectTests(tableName: string) {
+    onSelectTests?.(tableName);
   }
 
   function handleSelectPolicy(id: string) {
@@ -191,6 +209,7 @@
         {@const isSelected = selectedTable === fullName}
         {@const tablePolicies = policiesByTable.get(fullName) || []}
         {@const policyCount = countPolicyDefs(tablePolicies)}
+        {@const tableTests = testsByTable.get(fullName) ?? []}
         <div class="tree-group">
           <!-- Table header -->
           <div class="w-full flex items-center gap-1.5 px-2 py-1.5 transition-colors cursor-pointer
@@ -356,6 +375,41 @@
                             </div>
                           {/each}
                         {/if}
+                      {/each}
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Tests branch -->
+              <div class="tree-branch">
+                <div
+                  class="flex items-center gap-1.5 px-2 py-1 hover:bg-muted/50 transition-colors cursor-pointer"
+                  role="button"
+                  tabindex="0"
+                  onclick={() => { toggleTests(fullName); handleSelectTests(fullName); }}
+                  onkeydown={(e) => e.key === 'Enter' && (toggleTests(fullName), handleSelectTests(fullName))}
+                >
+                  <span class="p-0.5">
+                    {#if expandedTests.has(fullName)}
+                      <ChevronDown class="h-3 w-3 text-muted-foreground" />
+                    {:else}
+                      <ChevronRight class="h-3 w-3 text-muted-foreground" />
+                    {/if}
+                  </span>
+                  <FlaskConical class="h-3 w-3 text-purple-500 shrink-0" />
+                  <span class="text-xs text-foreground">Tests</span>
+                  <span class="text-[10px] text-muted-foreground ml-auto">{tableTests.length === 0 ? 'no tests' : tableTests.length}</span>
+                </div>
+                {#if expandedTests.has(fullName)}
+                  <div class="pl-5 border-l border-border ml-4">
+                    {#if tableTests.length === 0}
+                      <div class="px-2 py-1 text-xs text-muted-foreground italic">No tests defined</div>
+                    {:else}
+                      {#each tableTests as test (test.id)}
+                        <div class="px-2 py-1 text-xs text-foreground hover:bg-muted/50 rounded cursor-pointer truncate">
+                          {test.name}
+                        </div>
                       {/each}
                     {/if}
                   </div>

@@ -31,6 +31,10 @@ import {
   TestPoliciesResponseSchema,
   PolicyTestResultSchema,
   ExpressionResultSchema,
+  SaveTestCasesResponseSchema,
+  GetTestCasesResponseSchema,
+  SavedTestCaseSchema,
+  ListTestCaseTablesResponseSchema,
   type PreviewPoliciesRequest,
   type ValidateConfigRequest,
   type ApplyPoliciesRequest,
@@ -41,6 +45,10 @@ import {
   type ListExistingPoliciesRequest,
   type TestPoliciesRequest,
   type RLSPolicyConfig,
+  type SaveTestCasesRequest,
+  type GetTestCasesRequest,
+  type ListTestCaseTablesRequest,
+  type SavedTestCase,
 } from '@speajus/rlsify-types';
 import { tryParseSqlExpression } from '@speajus/rlsify-core';
 
@@ -837,6 +845,73 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
       default:
         return sql.substring(0, 50);
     }
+  }
+
+  async saveTestCases(request: SaveTestCasesRequest) {
+    const testCasesJson = JSON.stringify(
+      request.testCases.map(tc => ({
+        id: tc.id,
+        name: tc.name,
+        role: tc.role,
+        userId: tc.userId,
+        claims: tc.claims,
+        rowData: tc.rowData,
+        operation: tc.operation,
+        expectedOutcome: tc.expectedOutcome,
+      }))
+    );
+
+    await this.pool.query(
+      `INSERT INTO saved_test_cases (table_name, test_cases)
+       VALUES ($1, $2)
+       ON CONFLICT (table_name)
+       DO UPDATE SET test_cases = $2, updated_at = NOW()`,
+      [request.table, testCasesJson]
+    );
+
+    return create(SaveTestCasesResponseSchema, { success: true });
+  }
+
+  async getTestCases(request: GetTestCasesRequest) {
+    const result = await this.pool.query(
+      'SELECT test_cases FROM saved_test_cases WHERE table_name = $1',
+      [request.table]
+    );
+
+    if (result.rows.length === 0) {
+      return create(GetTestCasesResponseSchema, { testCases: [] });
+    }
+
+    const testCasesJson = result.rows[0].test_cases as SavedTestCase[];
+    const testCases = testCasesJson.map(tc =>
+      create(SavedTestCaseSchema, {
+        id: tc.id,
+        name: tc.name,
+        role: tc.role,
+        userId: tc.userId,
+        claims: tc.claims,
+        rowData: tc.rowData,
+        operation: tc.operation,
+        expectedOutcome: tc.expectedOutcome,
+      })
+    );
+
+    return create(GetTestCasesResponseSchema, { testCases });
+  }
+
+  async listTestCaseTables(_request: ListTestCaseTablesRequest) {
+    const result = await this.pool.query(
+      `SELECT table_name, jsonb_array_length(test_cases) as count
+       FROM saved_test_cases
+       WHERE jsonb_array_length(test_cases) > 0`
+    );
+
+    const tables: Record<string, number> = {};
+    for (const row of result.rows) {
+      tables[row.table_name] = row.count;
+    }
+
+    return create(ListTestCaseTablesResponseSchema, { tables });
   }
 }
 

@@ -11,7 +11,7 @@ import type { JsonObject, Message } from "@bufbuild/protobuf";
  * Describes the file rlsify/v1/policy.proto.
  */
 export const file_rlsify_v1_policy: GenFile = /*@__PURE__*/
-  fileDesc("ChZybHNpZnkvdjEvcG9saWN5LnByb3RvEglybHNpZnkudjEi2AIKEFBvbGljeURlZmluaXRpb24SDAoEbmFtZRgBIAEoCRIpCgdjb21tYW5kGAIgASgOMhgucmxzaWZ5LnYxLlBvbGljeUNvbW1hbmQSEgoFdXNpbmcYAyABKAlIAIgBARIXCgp3aXRoX2NoZWNrGAQgASgJSAGIAQESNgoQdXNpbmdfZXhwcmVzc2lvbhgFIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RIAogBARI7ChV3aXRoX2NoZWNrX2V4cHJlc3Npb24YBiABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydWN0SAOIAQESDQoFcm9sZXMYByADKAkSEgoKcGVybWlzc2l2ZRgIIAEoCEIICgZfdXNpbmdCDQoLX3dpdGhfY2hlY2tCEwoRX3VzaW5nX2V4cHJlc3Npb25CGAoWX3dpdGhfY2hlY2tfZXhwcmVzc2lvbiJ4Cg5Kb2luRGVmaW5pdGlvbhINCgV0YWJsZRgBIAEoCRIhCgR0eXBlGAIgASgOMhMucmxzaWZ5LnYxLkpvaW5UeXBlEg8KAm9uGAMgASgJSACIAQESEgoFYWxpYXMYBCABKAlIAYgBAUIFCgNfb25CCAoGX2FsaWFzItEBCg9STFNQb2xpY3lDb25maWcSDwoHdmVyc2lvbhgBIAEoCRINCgV0YWJsZRgCIAEoCRITCgZzY2hlbWEYAyABKAlIAIgBARItCghwb2xpY2llcxgEIAMoCzIbLnJsc2lmeS52MS5Qb2xpY3lEZWZpbml0aW9uEigKBWpvaW5zGAUgAygLMhkucmxzaWZ5LnYxLkpvaW5EZWZpbml0aW9uEhIKCmVuYWJsZV9ybHMYBiABKAgSEQoJZm9yY2VfcmxzGAcgASgIQgkKB19zY2hlbWEiPwoPVmFsaWRhdGlvbkVycm9yEg0KBWZpZWxkGAEgASgJEg8KB21lc3NhZ2UYAiABKAkSDAoEY29kZRgDIAEoCSJ7ChBWYWxpZGF0aW9uUmVzdWx0Eg0KBXZhbGlkGAEgASgIEioKBmVycm9ycxgCIAMoCzIaLnJsc2lmeS52MS5WYWxpZGF0aW9uRXJyb3ISLAoId2FybmluZ3MYAyADKAsyGi5ybHNpZnkudjEuVmFsaWRhdGlvbkVycm9yIm0KDEdlbmVyYXRlZFNRTBILCgNzcWwYASABKAkSJgoEdHlwZRgCIAEoDjIYLnJsc2lmeS52MS5TdGF0ZW1lbnRUeXBlEhgKC2Rlc2NyaXB0aW9uGAMgASgJSACIAQFCDgoMX2Rlc2NyaXB0aW9uIqIBChZQb2xpY3lHZW5lcmF0aW9uUmVzdWx0EisKCnN0YXRlbWVudHMYASADKAsyFy5ybHNpZnkudjEuR2VuZXJhdGVkU1FMEi8KCnZhbGlkYXRpb24YAiABKAsyGy5ybHNpZnkudjEuVmFsaWRhdGlvblJlc3VsdBIqCgZjb25maWcYAyABKAsyGi5ybHNpZnkudjEuUkxTUG9saWN5Q29uZmlnIkQKFlByZXZpZXdQb2xpY2llc1JlcXVlc3QSKgoGY29uZmlnGAEgASgLMhoucmxzaWZ5LnYxLlJMU1BvbGljeUNvbmZpZyJGChdQcmV2aWV3UG9saWNpZXNSZXNwb25zZRIrCgpzdGF0ZW1lbnRzGAEgAygLMhcucmxzaWZ5LnYxLkdlbmVyYXRlZFNRTCJDChVWYWxpZGF0ZUNvbmZpZ1JlcXVlc3QSKgoGY29uZmlnGAEgASgLMhoucmxzaWZ5LnYxLlJMU1BvbGljeUNvbmZpZyJFChZWYWxpZGF0ZUNvbmZpZ1Jlc3BvbnNlEisKBnJlc3VsdBgBIAEoCzIbLnJsc2lmeS52MS5WYWxpZGF0aW9uUmVzdWx0IlMKFEFwcGx5UG9saWNpZXNSZXF1ZXN0EioKBmNvbmZpZxgBIAEoCzIaLnJsc2lmeS52MS5STFNQb2xpY3lDb25maWcSDwoHZHJ5X3J1bhgCIAEoCCJ5ChVBcHBseVBvbGljaWVzUmVzcG9uc2USMQoGcmVzdWx0GAEgASgLMiEucmxzaWZ5LnYxLlBvbGljeUdlbmVyYXRpb25SZXN1bHQSDwoHYXBwbGllZBgCIAEoCBISCgVlcnJvchgDIAEoCUgAiAEBQggKBl9lcnJvciKXAQoLU2F2ZWRQb2xpY3kSCgoCaWQYASABKAkSKgoGY29uZmlnGAIgASgLMhoucmxzaWZ5LnYxLlJMU1BvbGljeUNvbmZpZxISCgpjcmVhdGVkX2F0GAMgASgJEhIKCnVwZGF0ZWRfYXQYBCABKAkSGAoLZGVzY3JpcHRpb24YBSABKAlIAIgBAUIOCgxfZGVzY3JpcHRpb24igQEKEVNhdmVQb2xpY3lSZXF1ZXN0EioKBmNvbmZpZxgBIAEoCzIaLnJsc2lmeS52MS5STFNQb2xpY3lDb25maWcSDwoCaWQYAiABKAlIAIgBARIYCgtkZXNjcmlwdGlvbhgDIAEoCUgBiAEBQgUKA19pZEIOCgxfZGVzY3JpcHRpb24iPAoSU2F2ZVBvbGljeVJlc3BvbnNlEiYKBnBvbGljeRgBIAEoCzIWLnJsc2lmeS52MS5TYXZlZFBvbGljeSJgChNMaXN0UG9saWNpZXNSZXF1ZXN0EhkKDHRhYmxlX2ZpbHRlchgBIAEoCUgAiAEBEg0KBWxpbWl0GAIgASgFEg4KBm9mZnNldBgDIAEoBUIPCg1fdGFibGVfZmlsdGVyIk8KFExpc3RQb2xpY2llc1Jlc3BvbnNlEigKCHBvbGljaWVzGAEgAygLMhYucmxzaWZ5LnYxLlNhdmVkUG9saWN5Eg0KBXRvdGFsGAIgASgFIh4KEEdldFBvbGljeVJlcXVlc3QSCgoCaWQYASABKAkiOwoRR2V0UG9saWN5UmVzcG9uc2USJgoGcG9saWN5GAEgASgLMhYucmxzaWZ5LnYxLlNhdmVkUG9saWN5IiEKE0RlbGV0ZVBvbGljeVJlcXVlc3QSCgoCaWQYASABKAkiJwoURGVsZXRlUG9saWN5UmVzcG9uc2USDwoHZGVsZXRlZBgBIAEoCCK1AwoRRXhpc3RpbmdSTFNQb2xpY3kSEwoLc2NoZW1hX25hbWUYASABKAkSEgoKdGFibGVfbmFtZRgCIAEoCRITCgtwb2xpY3lfbmFtZRgDIAEoCRIPCgdjb21tYW5kGAQgASgJEhIKCnBlcm1pc3NpdmUYBSABKAgSDQoFcm9sZXMYBiADKAkSHQoQdXNpbmdfZXhwcmVzc2lvbhgHIAEoCUgAiAEBEiIKFXdpdGhfY2hlY2tfZXhwcmVzc2lvbhgIIAEoCUgBiAEBEjIKDHBhcnNlZF91c2luZxgJIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RIAogBARI3ChFwYXJzZWRfd2l0aF9jaGVjaxgKIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RIA4gBARIYCgtwYXJzZV9lcnJvchgLIAEoCUgEiAEBQhMKEV91c2luZ19leHByZXNzaW9uQhgKFl93aXRoX2NoZWNrX2V4cHJlc3Npb25CDwoNX3BhcnNlZF91c2luZ0IUChJfcGFyc2VkX3dpdGhfY2hlY2tCDgoMX3BhcnNlX2Vycm9yIlsKG0xpc3RFeGlzdGluZ1BvbGljaWVzUmVxdWVzdBITCgZzY2hlbWEYASABKAlIAIgBARISCgV0YWJsZRgCIAEoCUgBiAEBQgkKB19zY2hlbWFCCAoGX3RhYmxlIk4KHExpc3RFeGlzdGluZ1BvbGljaWVzUmVzcG9uc2USLgoIcG9saWNpZXMYASADKAsyHC5ybHNpZnkudjEuRXhpc3RpbmdSTFNQb2xpY3kiRAoOU2Vzc2lvbkNvbnRleHQSDwoHdXNlcl9pZBgBIAEoCRIMCgRyb2xlGAIgASgJEhMKC2NsYWltc19qc29uGAMgASgJInMKEEV4cHJlc3Npb25SZXN1bHQSDwoHYWxsb3dlZBgBIAEoCBITCgZyZWFzb24YAiABKAlIAIgBARIbCg5zcWxfZXhwcmVzc2lvbhgDIAEoCUgBiAEBQgkKB19yZWFzb25CEQoPX3NxbF9leHByZXNzaW9uIqsBChBQb2xpY3lUZXN0UmVzdWx0EhMKC3BvbGljeV9uYW1lGAEgASgJEjEKDHVzaW5nX3Jlc3VsdBgCIAEoCzIbLnJsc2lmeS52MS5FeHByZXNzaW9uUmVzdWx0EjYKEXdpdGhfY2hlY2tfcmVzdWx0GAMgASgLMhsucmxzaWZ5LnYxLkV4cHJlc3Npb25SZXN1bHQSFwoPb3ZlcmFsbF9hbGxvd2VkGAQgASgIIsMBChNUZXN0UG9saWNpZXNSZXF1ZXN0Eg0KBXRhYmxlGAEgASgJEi0KCHBvbGljaWVzGAIgAygLMhsucmxzaWZ5LnYxLlBvbGljeURlZmluaXRpb24SKgoHc2Vzc2lvbhgDIAEoCzIZLnJsc2lmeS52MS5TZXNzaW9uQ29udGV4dBIVCg1yb3dfZGF0YV9qc29uGAQgASgJEisKCW9wZXJhdGlvbhgFIAEoDjIYLnJsc2lmeS52MS5Qb2xpY3lDb21tYW5kImIKFFRlc3RQb2xpY2llc1Jlc3BvbnNlEiwKB3Jlc3VsdHMYASADKAsyGy5ybHNpZnkudjEuUG9saWN5VGVzdFJlc3VsdBISCgVlcnJvchgCIAEoCUgAiAEBQggKBl9lcnJvciqzAQoNUG9saWN5Q29tbWFuZBIeChpQT0xJQ1lfQ09NTUFORF9VTlNQRUNJRklFRBAAEhkKFVBPTElDWV9DT01NQU5EX1NFTEVDVBABEhkKFVBPTElDWV9DT01NQU5EX0lOU0VSVBACEhkKFVBPTElDWV9DT01NQU5EX1VQREFURRADEhkKFVBPTElDWV9DT01NQU5EX0RFTEVURRAEEhYKElBPTElDWV9DT01NQU5EX0FMTBAFKncKCEpvaW5UeXBlEhkKFUpPSU5fVFlQRV9VTlNQRUNJRklFRBAAEhMKD0pPSU5fVFlQRV9JTk5FUhABEhIKDkpPSU5fVFlQRV9MRUZUEAISEwoPSk9JTl9UWVBFX1JJR0hUEAMSEgoOSk9JTl9UWVBFX0ZVTEwQBCrQAQoNU3RhdGVtZW50VHlwZRIeChpTVEFURU1FTlRfVFlQRV9VTlNQRUNJRklFRBAAEiAKHFNUQVRFTUVOVF9UWVBFX0NSRUFURV9QT0xJQ1kQARIeChpTVEFURU1FTlRfVFlQRV9BTFRFUl9UQUJMRRACEh4KGlNUQVRFTUVOVF9UWVBFX0RST1BfUE9MSUNZEAMSHQoZU1RBVEVNRU5UX1RZUEVfRU5BQkxFX1JMUxAEEh4KGlNUQVRFTUVOVF9UWVBFX0RJU0FCTEVfUkxTEAUygwYKDVBvbGljeVNlcnZpY2USWAoPUHJldmlld1BvbGljaWVzEiEucmxzaWZ5LnYxLlByZXZpZXdQb2xpY2llc1JlcXVlc3QaIi5ybHNpZnkudjEuUHJldmlld1BvbGljaWVzUmVzcG9uc2USVQoOVmFsaWRhdGVDb25maWcSIC5ybHNpZnkudjEuVmFsaWRhdGVDb25maWdSZXF1ZXN0GiEucmxzaWZ5LnYxLlZhbGlkYXRlQ29uZmlnUmVzcG9uc2USUgoNQXBwbHlQb2xpY2llcxIfLnJsc2lmeS52MS5BcHBseVBvbGljaWVzUmVxdWVzdBogLnJsc2lmeS52MS5BcHBseVBvbGljaWVzUmVzcG9uc2USSQoKU2F2ZVBvbGljeRIcLnJsc2lmeS52MS5TYXZlUG9saWN5UmVxdWVzdBodLnJsc2lmeS52MS5TYXZlUG9saWN5UmVzcG9uc2USTwoMTGlzdFBvbGljaWVzEh4ucmxzaWZ5LnYxLkxpc3RQb2xpY2llc1JlcXVlc3QaHy5ybHNpZnkudjEuTGlzdFBvbGljaWVzUmVzcG9uc2USRgoJR2V0UG9saWN5EhsucmxzaWZ5LnYxLkdldFBvbGljeVJlcXVlc3QaHC5ybHNpZnkudjEuR2V0UG9saWN5UmVzcG9uc2USTwoMRGVsZXRlUG9saWN5Eh4ucmxzaWZ5LnYxLkRlbGV0ZVBvbGljeVJlcXVlc3QaHy5ybHNpZnkudjEuRGVsZXRlUG9saWN5UmVzcG9uc2USZwoUTGlzdEV4aXN0aW5nUG9saWNpZXMSJi5ybHNpZnkudjEuTGlzdEV4aXN0aW5nUG9saWNpZXNSZXF1ZXN0GicucmxzaWZ5LnYxLkxpc3RFeGlzdGluZ1BvbGljaWVzUmVzcG9uc2USTwoMVGVzdFBvbGljaWVzEh4ucmxzaWZ5LnYxLlRlc3RQb2xpY2llc1JlcXVlc3QaHy5ybHNpZnkudjEuVGVzdFBvbGljaWVzUmVzcG9uc2ViBnByb3RvMw", [file_google_protobuf_struct]);
+  fileDesc("ChZybHNpZnkvdjEvcG9saWN5LnByb3RvEglybHNpZnkudjEi2AIKEFBvbGljeURlZmluaXRpb24SDAoEbmFtZRgBIAEoCRIpCgdjb21tYW5kGAIgASgOMhgucmxzaWZ5LnYxLlBvbGljeUNvbW1hbmQSEgoFdXNpbmcYAyABKAlIAIgBARIXCgp3aXRoX2NoZWNrGAQgASgJSAGIAQESNgoQdXNpbmdfZXhwcmVzc2lvbhgFIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RIAogBARI7ChV3aXRoX2NoZWNrX2V4cHJlc3Npb24YBiABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydWN0SAOIAQESDQoFcm9sZXMYByADKAkSEgoKcGVybWlzc2l2ZRgIIAEoCEIICgZfdXNpbmdCDQoLX3dpdGhfY2hlY2tCEwoRX3VzaW5nX2V4cHJlc3Npb25CGAoWX3dpdGhfY2hlY2tfZXhwcmVzc2lvbiJ4Cg5Kb2luRGVmaW5pdGlvbhINCgV0YWJsZRgBIAEoCRIhCgR0eXBlGAIgASgOMhMucmxzaWZ5LnYxLkpvaW5UeXBlEg8KAm9uGAMgASgJSACIAQESEgoFYWxpYXMYBCABKAlIAYgBAUIFCgNfb25CCAoGX2FsaWFzItEBCg9STFNQb2xpY3lDb25maWcSDwoHdmVyc2lvbhgBIAEoCRINCgV0YWJsZRgCIAEoCRITCgZzY2hlbWEYAyABKAlIAIgBARItCghwb2xpY2llcxgEIAMoCzIbLnJsc2lmeS52MS5Qb2xpY3lEZWZpbml0aW9uEigKBWpvaW5zGAUgAygLMhkucmxzaWZ5LnYxLkpvaW5EZWZpbml0aW9uEhIKCmVuYWJsZV9ybHMYBiABKAgSEQoJZm9yY2VfcmxzGAcgASgIQgkKB19zY2hlbWEiPwoPVmFsaWRhdGlvbkVycm9yEg0KBWZpZWxkGAEgASgJEg8KB21lc3NhZ2UYAiABKAkSDAoEY29kZRgDIAEoCSJ7ChBWYWxpZGF0aW9uUmVzdWx0Eg0KBXZhbGlkGAEgASgIEioKBmVycm9ycxgCIAMoCzIaLnJsc2lmeS52MS5WYWxpZGF0aW9uRXJyb3ISLAoId2FybmluZ3MYAyADKAsyGi5ybHNpZnkudjEuVmFsaWRhdGlvbkVycm9yIm0KDEdlbmVyYXRlZFNRTBILCgNzcWwYASABKAkSJgoEdHlwZRgCIAEoDjIYLnJsc2lmeS52MS5TdGF0ZW1lbnRUeXBlEhgKC2Rlc2NyaXB0aW9uGAMgASgJSACIAQFCDgoMX2Rlc2NyaXB0aW9uIqIBChZQb2xpY3lHZW5lcmF0aW9uUmVzdWx0EisKCnN0YXRlbWVudHMYASADKAsyFy5ybHNpZnkudjEuR2VuZXJhdGVkU1FMEi8KCnZhbGlkYXRpb24YAiABKAsyGy5ybHNpZnkudjEuVmFsaWRhdGlvblJlc3VsdBIqCgZjb25maWcYAyABKAsyGi5ybHNpZnkudjEuUkxTUG9saWN5Q29uZmlnIkQKFlByZXZpZXdQb2xpY2llc1JlcXVlc3QSKgoGY29uZmlnGAEgASgLMhoucmxzaWZ5LnYxLlJMU1BvbGljeUNvbmZpZyJGChdQcmV2aWV3UG9saWNpZXNSZXNwb25zZRIrCgpzdGF0ZW1lbnRzGAEgAygLMhcucmxzaWZ5LnYxLkdlbmVyYXRlZFNRTCJDChVWYWxpZGF0ZUNvbmZpZ1JlcXVlc3QSKgoGY29uZmlnGAEgASgLMhoucmxzaWZ5LnYxLlJMU1BvbGljeUNvbmZpZyJFChZWYWxpZGF0ZUNvbmZpZ1Jlc3BvbnNlEisKBnJlc3VsdBgBIAEoCzIbLnJsc2lmeS52MS5WYWxpZGF0aW9uUmVzdWx0IlMKFEFwcGx5UG9saWNpZXNSZXF1ZXN0EioKBmNvbmZpZxgBIAEoCzIaLnJsc2lmeS52MS5STFNQb2xpY3lDb25maWcSDwoHZHJ5X3J1bhgCIAEoCCJ5ChVBcHBseVBvbGljaWVzUmVzcG9uc2USMQoGcmVzdWx0GAEgASgLMiEucmxzaWZ5LnYxLlBvbGljeUdlbmVyYXRpb25SZXN1bHQSDwoHYXBwbGllZBgCIAEoCBISCgVlcnJvchgDIAEoCUgAiAEBQggKBl9lcnJvciKXAQoLU2F2ZWRQb2xpY3kSCgoCaWQYASABKAkSKgoGY29uZmlnGAIgASgLMhoucmxzaWZ5LnYxLlJMU1BvbGljeUNvbmZpZxISCgpjcmVhdGVkX2F0GAMgASgJEhIKCnVwZGF0ZWRfYXQYBCABKAkSGAoLZGVzY3JpcHRpb24YBSABKAlIAIgBAUIOCgxfZGVzY3JpcHRpb24igQEKEVNhdmVQb2xpY3lSZXF1ZXN0EioKBmNvbmZpZxgBIAEoCzIaLnJsc2lmeS52MS5STFNQb2xpY3lDb25maWcSDwoCaWQYAiABKAlIAIgBARIYCgtkZXNjcmlwdGlvbhgDIAEoCUgBiAEBQgUKA19pZEIOCgxfZGVzY3JpcHRpb24iPAoSU2F2ZVBvbGljeVJlc3BvbnNlEiYKBnBvbGljeRgBIAEoCzIWLnJsc2lmeS52MS5TYXZlZFBvbGljeSJgChNMaXN0UG9saWNpZXNSZXF1ZXN0EhkKDHRhYmxlX2ZpbHRlchgBIAEoCUgAiAEBEg0KBWxpbWl0GAIgASgFEg4KBm9mZnNldBgDIAEoBUIPCg1fdGFibGVfZmlsdGVyIk8KFExpc3RQb2xpY2llc1Jlc3BvbnNlEigKCHBvbGljaWVzGAEgAygLMhYucmxzaWZ5LnYxLlNhdmVkUG9saWN5Eg0KBXRvdGFsGAIgASgFIh4KEEdldFBvbGljeVJlcXVlc3QSCgoCaWQYASABKAkiOwoRR2V0UG9saWN5UmVzcG9uc2USJgoGcG9saWN5GAEgASgLMhYucmxzaWZ5LnYxLlNhdmVkUG9saWN5IiEKE0RlbGV0ZVBvbGljeVJlcXVlc3QSCgoCaWQYASABKAkiJwoURGVsZXRlUG9saWN5UmVzcG9uc2USDwoHZGVsZXRlZBgBIAEoCCK1AwoRRXhpc3RpbmdSTFNQb2xpY3kSEwoLc2NoZW1hX25hbWUYASABKAkSEgoKdGFibGVfbmFtZRgCIAEoCRITCgtwb2xpY3lfbmFtZRgDIAEoCRIPCgdjb21tYW5kGAQgASgJEhIKCnBlcm1pc3NpdmUYBSABKAgSDQoFcm9sZXMYBiADKAkSHQoQdXNpbmdfZXhwcmVzc2lvbhgHIAEoCUgAiAEBEiIKFXdpdGhfY2hlY2tfZXhwcmVzc2lvbhgIIAEoCUgBiAEBEjIKDHBhcnNlZF91c2luZxgJIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RIAogBARI3ChFwYXJzZWRfd2l0aF9jaGVjaxgKIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RIA4gBARIYCgtwYXJzZV9lcnJvchgLIAEoCUgEiAEBQhMKEV91c2luZ19leHByZXNzaW9uQhgKFl93aXRoX2NoZWNrX2V4cHJlc3Npb25CDwoNX3BhcnNlZF91c2luZ0IUChJfcGFyc2VkX3dpdGhfY2hlY2tCDgoMX3BhcnNlX2Vycm9yIlsKG0xpc3RFeGlzdGluZ1BvbGljaWVzUmVxdWVzdBITCgZzY2hlbWEYASABKAlIAIgBARISCgV0YWJsZRgCIAEoCUgBiAEBQgkKB19zY2hlbWFCCAoGX3RhYmxlIk4KHExpc3RFeGlzdGluZ1BvbGljaWVzUmVzcG9uc2USLgoIcG9saWNpZXMYASADKAsyHC5ybHNpZnkudjEuRXhpc3RpbmdSTFNQb2xpY3kiRAoOU2Vzc2lvbkNvbnRleHQSDwoHdXNlcl9pZBgBIAEoCRIMCgRyb2xlGAIgASgJEhMKC2NsYWltc19qc29uGAMgASgJInMKEEV4cHJlc3Npb25SZXN1bHQSDwoHYWxsb3dlZBgBIAEoCBITCgZyZWFzb24YAiABKAlIAIgBARIbCg5zcWxfZXhwcmVzc2lvbhgDIAEoCUgBiAEBQgkKB19yZWFzb25CEQoPX3NxbF9leHByZXNzaW9uIqsBChBQb2xpY3lUZXN0UmVzdWx0EhMKC3BvbGljeV9uYW1lGAEgASgJEjEKDHVzaW5nX3Jlc3VsdBgCIAEoCzIbLnJsc2lmeS52MS5FeHByZXNzaW9uUmVzdWx0EjYKEXdpdGhfY2hlY2tfcmVzdWx0GAMgASgLMhsucmxzaWZ5LnYxLkV4cHJlc3Npb25SZXN1bHQSFwoPb3ZlcmFsbF9hbGxvd2VkGAQgASgIIsMBChNUZXN0UG9saWNpZXNSZXF1ZXN0Eg0KBXRhYmxlGAEgASgJEi0KCHBvbGljaWVzGAIgAygLMhsucmxzaWZ5LnYxLlBvbGljeURlZmluaXRpb24SKgoHc2Vzc2lvbhgDIAEoCzIZLnJsc2lmeS52MS5TZXNzaW9uQ29udGV4dBIVCg1yb3dfZGF0YV9qc29uGAQgASgJEisKCW9wZXJhdGlvbhgFIAEoDjIYLnJsc2lmeS52MS5Qb2xpY3lDb21tYW5kImIKFFRlc3RQb2xpY2llc1Jlc3BvbnNlEiwKB3Jlc3VsdHMYASADKAsyGy5ybHNpZnkudjEuUG9saWN5VGVzdFJlc3VsdBISCgVlcnJvchgCIAEoCUgAiAEBQggKBl9lcnJvciKxAQoNU2F2ZWRUZXN0Q2FzZRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEgwKBHJvbGUYAyABKAkSDwoHdXNlcl9pZBgEIAEoCRIOCgZjbGFpbXMYBSABKAkSEAoIcm93X2RhdGEYBiABKAkSKwoJb3BlcmF0aW9uGAcgASgOMhgucmxzaWZ5LnYxLlBvbGljeUNvbW1hbmQSGAoQZXhwZWN0ZWRfb3V0Y29tZRgIIAEoCSJTChRTYXZlVGVzdENhc2VzUmVxdWVzdBINCgV0YWJsZRgBIAEoCRIsCgp0ZXN0X2Nhc2VzGAIgAygLMhgucmxzaWZ5LnYxLlNhdmVkVGVzdENhc2UiKAoVU2F2ZVRlc3RDYXNlc1Jlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgiJAoTR2V0VGVzdENhc2VzUmVxdWVzdBINCgV0YWJsZRgBIAEoCSJEChRHZXRUZXN0Q2FzZXNSZXNwb25zZRIsCgp0ZXN0X2Nhc2VzGAEgAygLMhgucmxzaWZ5LnYxLlNhdmVkVGVzdENhc2UiGwoZTGlzdFRlc3RDYXNlVGFibGVzUmVxdWVzdCKOAQoaTGlzdFRlc3RDYXNlVGFibGVzUmVzcG9uc2USQQoGdGFibGVzGAEgAygLMjEucmxzaWZ5LnYxLkxpc3RUZXN0Q2FzZVRhYmxlc1Jlc3BvbnNlLlRhYmxlc0VudHJ5Gi0KC1RhYmxlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoBToCOAEqswEKDVBvbGljeUNvbW1hbmQSHgoaUE9MSUNZX0NPTU1BTkRfVU5TUEVDSUZJRUQQABIZChVQT0xJQ1lfQ09NTUFORF9TRUxFQ1QQARIZChVQT0xJQ1lfQ09NTUFORF9JTlNFUlQQAhIZChVQT0xJQ1lfQ09NTUFORF9VUERBVEUQAxIZChVQT0xJQ1lfQ09NTUFORF9ERUxFVEUQBBIWChJQT0xJQ1lfQ09NTUFORF9BTEwQBSp3CghKb2luVHlwZRIZChVKT0lOX1RZUEVfVU5TUEVDSUZJRUQQABITCg9KT0lOX1RZUEVfSU5ORVIQARISCg5KT0lOX1RZUEVfTEVGVBACEhMKD0pPSU5fVFlQRV9SSUdIVBADEhIKDkpPSU5fVFlQRV9GVUxMEAQq0AEKDVN0YXRlbWVudFR5cGUSHgoaU1RBVEVNRU5UX1RZUEVfVU5TUEVDSUZJRUQQABIgChxTVEFURU1FTlRfVFlQRV9DUkVBVEVfUE9MSUNZEAESHgoaU1RBVEVNRU5UX1RZUEVfQUxURVJfVEFCTEUQAhIeChpTVEFURU1FTlRfVFlQRV9EUk9QX1BPTElDWRADEh0KGVNUQVRFTUVOVF9UWVBFX0VOQUJMRV9STFMQBBIeChpTVEFURU1FTlRfVFlQRV9ESVNBQkxFX1JMUxAFMosICg1Qb2xpY3lTZXJ2aWNlElgKD1ByZXZpZXdQb2xpY2llcxIhLnJsc2lmeS52MS5QcmV2aWV3UG9saWNpZXNSZXF1ZXN0GiIucmxzaWZ5LnYxLlByZXZpZXdQb2xpY2llc1Jlc3BvbnNlElUKDlZhbGlkYXRlQ29uZmlnEiAucmxzaWZ5LnYxLlZhbGlkYXRlQ29uZmlnUmVxdWVzdBohLnJsc2lmeS52MS5WYWxpZGF0ZUNvbmZpZ1Jlc3BvbnNlElIKDUFwcGx5UG9saWNpZXMSHy5ybHNpZnkudjEuQXBwbHlQb2xpY2llc1JlcXVlc3QaIC5ybHNpZnkudjEuQXBwbHlQb2xpY2llc1Jlc3BvbnNlEkkKClNhdmVQb2xpY3kSHC5ybHNpZnkudjEuU2F2ZVBvbGljeVJlcXVlc3QaHS5ybHNpZnkudjEuU2F2ZVBvbGljeVJlc3BvbnNlEk8KDExpc3RQb2xpY2llcxIeLnJsc2lmeS52MS5MaXN0UG9saWNpZXNSZXF1ZXN0Gh8ucmxzaWZ5LnYxLkxpc3RQb2xpY2llc1Jlc3BvbnNlEkYKCUdldFBvbGljeRIbLnJsc2lmeS52MS5HZXRQb2xpY3lSZXF1ZXN0GhwucmxzaWZ5LnYxLkdldFBvbGljeVJlc3BvbnNlEk8KDERlbGV0ZVBvbGljeRIeLnJsc2lmeS52MS5EZWxldGVQb2xpY3lSZXF1ZXN0Gh8ucmxzaWZ5LnYxLkRlbGV0ZVBvbGljeVJlc3BvbnNlEmcKFExpc3RFeGlzdGluZ1BvbGljaWVzEiYucmxzaWZ5LnYxLkxpc3RFeGlzdGluZ1BvbGljaWVzUmVxdWVzdBonLnJsc2lmeS52MS5MaXN0RXhpc3RpbmdQb2xpY2llc1Jlc3BvbnNlEk8KDFRlc3RQb2xpY2llcxIeLnJsc2lmeS52MS5UZXN0UG9saWNpZXNSZXF1ZXN0Gh8ucmxzaWZ5LnYxLlRlc3RQb2xpY2llc1Jlc3BvbnNlElIKDVNhdmVUZXN0Q2FzZXMSHy5ybHNpZnkudjEuU2F2ZVRlc3RDYXNlc1JlcXVlc3QaIC5ybHNpZnkudjEuU2F2ZVRlc3RDYXNlc1Jlc3BvbnNlEk8KDEdldFRlc3RDYXNlcxIeLnJsc2lmeS52MS5HZXRUZXN0Q2FzZXNSZXF1ZXN0Gh8ucmxzaWZ5LnYxLkdldFRlc3RDYXNlc1Jlc3BvbnNlEmEKEkxpc3RUZXN0Q2FzZVRhYmxlcxIkLnJsc2lmeS52MS5MaXN0VGVzdENhc2VUYWJsZXNSZXF1ZXN0GiUucmxzaWZ5LnYxLkxpc3RUZXN0Q2FzZVRhYmxlc1Jlc3BvbnNlYgZwcm90bzM", [file_google_protobuf_struct]);
 
 /**
  * Individual RLS policy definition
@@ -937,6 +937,205 @@ export const TestPoliciesResponseSchema: GenMessage<TestPoliciesResponse> = /*@_
   messageDesc(file_rlsify_v1_policy, 29);
 
 /**
+ * A saved test case for policy testing
+ *
+ * @generated from message rlsify.v1.SavedTestCase
+ */
+export type SavedTestCase = Message<"rlsify.v1.SavedTestCase"> & {
+  /**
+   * Unique identifier
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * Human-readable name
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * PostgreSQL role to test as
+   *
+   * @generated from field: string role = 3;
+   */
+  role: string;
+
+  /**
+   * User ID for auth.uid()
+   *
+   * @generated from field: string user_id = 4;
+   */
+  userId: string;
+
+  /**
+   * JWT claims as JSON string
+   *
+   * @generated from field: string claims = 5;
+   */
+  claims: string;
+
+  /**
+   * Sample row data as JSON string
+   *
+   * @generated from field: string row_data = 6;
+   */
+  rowData: string;
+
+  /**
+   * Operation to test
+   *
+   * @generated from field: rlsify.v1.PolicyCommand operation = 7;
+   */
+  operation: PolicyCommand;
+
+  /**
+   * Expected outcome
+   *
+   * 'allow' or 'deny'
+   *
+   * @generated from field: string expected_outcome = 8;
+   */
+  expectedOutcome: string;
+};
+
+/**
+ * Describes the message rlsify.v1.SavedTestCase.
+ * Use `create(SavedTestCaseSchema)` to create a new message.
+ */
+export const SavedTestCaseSchema: GenMessage<SavedTestCase> = /*@__PURE__*/
+  messageDesc(file_rlsify_v1_policy, 30);
+
+/**
+ * Request to save test cases for a table
+ *
+ * @generated from message rlsify.v1.SaveTestCasesRequest
+ */
+export type SaveTestCasesRequest = Message<"rlsify.v1.SaveTestCasesRequest"> & {
+  /**
+   * Table identifier (schema.table format)
+   *
+   * @generated from field: string table = 1;
+   */
+  table: string;
+
+  /**
+   * Test cases to save
+   *
+   * @generated from field: repeated rlsify.v1.SavedTestCase test_cases = 2;
+   */
+  testCases: SavedTestCase[];
+};
+
+/**
+ * Describes the message rlsify.v1.SaveTestCasesRequest.
+ * Use `create(SaveTestCasesRequestSchema)` to create a new message.
+ */
+export const SaveTestCasesRequestSchema: GenMessage<SaveTestCasesRequest> = /*@__PURE__*/
+  messageDesc(file_rlsify_v1_policy, 31);
+
+/**
+ * Response after saving test cases
+ *
+ * @generated from message rlsify.v1.SaveTestCasesResponse
+ */
+export type SaveTestCasesResponse = Message<"rlsify.v1.SaveTestCasesResponse"> & {
+  /**
+   * Whether the save was successful
+   *
+   * @generated from field: bool success = 1;
+   */
+  success: boolean;
+};
+
+/**
+ * Describes the message rlsify.v1.SaveTestCasesResponse.
+ * Use `create(SaveTestCasesResponseSchema)` to create a new message.
+ */
+export const SaveTestCasesResponseSchema: GenMessage<SaveTestCasesResponse> = /*@__PURE__*/
+  messageDesc(file_rlsify_v1_policy, 32);
+
+/**
+ * Request to get test cases for a table
+ *
+ * @generated from message rlsify.v1.GetTestCasesRequest
+ */
+export type GetTestCasesRequest = Message<"rlsify.v1.GetTestCasesRequest"> & {
+  /**
+   * Table identifier (schema.table format)
+   *
+   * @generated from field: string table = 1;
+   */
+  table: string;
+};
+
+/**
+ * Describes the message rlsify.v1.GetTestCasesRequest.
+ * Use `create(GetTestCasesRequestSchema)` to create a new message.
+ */
+export const GetTestCasesRequestSchema: GenMessage<GetTestCasesRequest> = /*@__PURE__*/
+  messageDesc(file_rlsify_v1_policy, 33);
+
+/**
+ * Response with test cases for a table
+ *
+ * @generated from message rlsify.v1.GetTestCasesResponse
+ */
+export type GetTestCasesResponse = Message<"rlsify.v1.GetTestCasesResponse"> & {
+  /**
+   * Test cases for the table
+   *
+   * @generated from field: repeated rlsify.v1.SavedTestCase test_cases = 1;
+   */
+  testCases: SavedTestCase[];
+};
+
+/**
+ * Describes the message rlsify.v1.GetTestCasesResponse.
+ * Use `create(GetTestCasesResponseSchema)` to create a new message.
+ */
+export const GetTestCasesResponseSchema: GenMessage<GetTestCasesResponse> = /*@__PURE__*/
+  messageDesc(file_rlsify_v1_policy, 34);
+
+/**
+ * Request to list all tables that have test cases
+ *
+ * @generated from message rlsify.v1.ListTestCaseTablesRequest
+ */
+export type ListTestCaseTablesRequest = Message<"rlsify.v1.ListTestCaseTablesRequest"> & {
+};
+
+/**
+ * Describes the message rlsify.v1.ListTestCaseTablesRequest.
+ * Use `create(ListTestCaseTablesRequestSchema)` to create a new message.
+ */
+export const ListTestCaseTablesRequestSchema: GenMessage<ListTestCaseTablesRequest> = /*@__PURE__*/
+  messageDesc(file_rlsify_v1_policy, 35);
+
+/**
+ * Response with tables that have test cases
+ *
+ * @generated from message rlsify.v1.ListTestCaseTablesResponse
+ */
+export type ListTestCaseTablesResponse = Message<"rlsify.v1.ListTestCaseTablesResponse"> & {
+  /**
+   * Map of table name to test case count
+   *
+   * @generated from field: map<string, int32> tables = 1;
+   */
+  tables: { [key: string]: number };
+};
+
+/**
+ * Describes the message rlsify.v1.ListTestCaseTablesResponse.
+ * Use `create(ListTestCaseTablesResponseSchema)` to create a new message.
+ */
+export const ListTestCaseTablesResponseSchema: GenMessage<ListTestCaseTablesResponse> = /*@__PURE__*/
+  messageDesc(file_rlsify_v1_policy, 36);
+
+/**
  * SQL command types for RLS policies
  *
  * @generated from enum rlsify.v1.PolicyCommand
@@ -1155,6 +1354,36 @@ export const PolicyService: GenService<{
     methodKind: "unary";
     input: typeof TestPoliciesRequestSchema;
     output: typeof TestPoliciesResponseSchema;
+  },
+  /**
+   * Save test cases for a table
+   *
+   * @generated from rpc rlsify.v1.PolicyService.SaveTestCases
+   */
+  saveTestCases: {
+    methodKind: "unary";
+    input: typeof SaveTestCasesRequestSchema;
+    output: typeof SaveTestCasesResponseSchema;
+  },
+  /**
+   * Get test cases for a table
+   *
+   * @generated from rpc rlsify.v1.PolicyService.GetTestCases
+   */
+  getTestCases: {
+    methodKind: "unary";
+    input: typeof GetTestCasesRequestSchema;
+    output: typeof GetTestCasesResponseSchema;
+  },
+  /**
+   * List all tables that have test cases
+   *
+   * @generated from rpc rlsify.v1.PolicyService.ListTestCaseTables
+   */
+  listTestCaseTables: {
+    methodKind: "unary";
+    input: typeof ListTestCaseTablesRequestSchema;
+    output: typeof ListTestCaseTablesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_rlsify_v1_policy, 0);
