@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { policyConfig, addPolicy, removePolicy, savePolicy, fetchPolicies, policySaving, currentPolicyId, hasUnsavedChanges, policyDescription, updateDescription } from './stores/policy-store.js';
+  import { policyConfig, addPolicy, removePolicy, savePolicy, fetchPolicies, policySaving, currentPolicyId, hasUnsavedChanges, policyDescription, updateDescription, addGeneratedPolicies } from './stores/policy-store.js';
   import PolicyItem from './PolicyItem.svelte';
+  import AIFullPolicyGenerator from './AIFullPolicyGenerator.svelte';
   import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
   import { Button } from '$lib/components/ui/button/index.js';
   import Plus from 'lucide-svelte/icons/plus';
   import Save from 'lucide-svelte/icons/save';
   import Loader2 from 'lucide-svelte/icons/loader-2';
+  import type { PolicyDefinition } from '@speajus/rlsify-types';
 
   // Derive table name from policy config
   let tableName = $derived($policyConfig.table || '');
@@ -19,6 +21,13 @@
     const target = e.target as HTMLTextAreaElement;
     updateDescription(target.value);
   }
+
+  function handlePoliciesGenerated(policies: PolicyDefinition[]) {
+    addGeneratedPolicies(policies);
+  }
+
+  // Get existing policy names for context
+  let existingPolicyNames = $derived($policyConfig.policies.map(p => p.name).filter(Boolean));
 </script>
 
 <Card class="border-border">
@@ -61,6 +70,16 @@
       oninput={(e) => handleDescriptionChange({ currentTarget: { value: e.currentTarget.textContent || '' } })}
       onblur={(e) => handleDescriptionChange({ currentTarget: { value: e.currentTarget.textContent || '' } })}
     >{$policyDescription}</p>
+
+    <!-- AI Full Policy Generator -->
+    {#if tableName}
+      <AIFullPolicyGenerator
+        baseTable={tableName}
+        tableSchema={undefined}
+        existingPolicies={existingPolicyNames}
+        onPoliciesGenerated={handlePoliciesGenerated}
+      />
+    {/if}
 
     <!-- Policies Section -->
     <div class="flex flex-col gap-4">

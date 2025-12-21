@@ -73,3 +73,4 @@ type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 export function isJson(value: unknown): value is Json {
   return value === null || isPrimitive(value) || isArrayOf(value, isJson) || isObject(value) && Object.values(value).every(isJson);
 }
+

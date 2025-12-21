@@ -5,7 +5,7 @@ version: v2
 plugins:
   # Generate ES module protobuf messages AND Connect service definitions
   - local: protoc-gen-es
-    out: packages/types/src/gen
+    out: src/gen
     opt:
       - target=ts
       - import_extension=.js

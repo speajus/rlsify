@@ -770,6 +770,23 @@ export {
   type GetTestCasesResponse,
   type ListTestCaseTablesRequest,
   type ListTestCaseTablesResponse,
+  // AI-powered policy generation
+  GeneratePolicyRequestSchema,
+  GeneratePolicyResponseSchema,
+  GenerateTestsRequestSchema,
+  GenerateTestsResponseSchema,
+  GeneratedTestCaseSchema,
+  GenerateFullPolicyRequestSchema,
+  GenerateFullPolicyResponseSchema,
+  GeneratedPolicyDefinitionSchema,
+  type GeneratePolicyRequest,
+  type GeneratePolicyResponse,
+  type GenerateTestsRequest,
+  type GenerateTestsResponse,
+  type GeneratedTestCase,
+  type GenerateFullPolicyRequest,
+  type GenerateFullPolicyResponse,
+  type GeneratedPolicyDefinition,
 } from './gen/rlsify/v1/policy_pb.js';
 
 export {

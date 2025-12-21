@@ -185,3 +185,67 @@ export async function generatePolicyTests(
   }));
 }
 
+// ============================================================================
+// Full Policy Generation
+// ============================================================================
+
+export interface GenerateFullPolicyOptions {
+  prompt: string;
+  tableName: string;
+  tableSchema?: TableInfo;
+  existingPolicies?: string[];
+  model?: string;
+}
+
+export interface GeneratedPolicyDefinition {
+  name: string;
+  command: string[];
+  description: string;
+  roles?: string[];
+  usingExpression: PermissionExpression;
+  withCheckExpression?: PermissionExpression;
+}
+
+export interface GenerateFullPolicyResult {
+  policies: GeneratedPolicyDefinition[];
+  explanation: string;
+}
+
+/**
+ * Generate complete policy definition(s) from a natural language prompt
+ *
+ * This calls the backend AI service via RPC and can return multiple policies
+ * if the prompt implies CRUD operations.
+ */
+export async function generateFullPolicy(
+  options: GenerateFullPolicyOptions
+): Promise<GenerateFullPolicyResult> {
+  const tokenData = retrieveAuggieToken();
+
+  if (!tokenData) {
+    throw new Error('No Auggie API token found. Please provide a token.');
+  }
+
+  const response = await policyClient.generateFullPolicy({
+    apiKey: tokenData.accessToken,
+    apiUrl: tokenData.tenantURL,
+    prompt: options.prompt,
+    tableName: options.tableName,
+    tableSchema: options.tableSchema as any,
+    existingPolicies: options.existingPolicies || [],
+    model: options.model,
+  });
+
+  return {
+    policies: response.policies.map(policy => ({
+      name: policy.name,
+      command: policy.command,
+      description: policy.description,
+      roles: policy.roles,
+      usingExpression: (policy.usingExpression as any) as PermissionExpression,
+      withCheckExpression: policy.withCheckExpression ? ((policy.withCheckExpression as any) as PermissionExpression) : undefined,
+    })),
+    explanation: response.explanation,
+  };
+}
+

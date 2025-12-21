@@ -1,9 +1,12 @@
 # ADR 002: AI-Powered Policy Generation with Auggie SDK
 
-**Status:** Proposed
+**Status:** Implemented
 **Date:** 2025-12-21
 **Deciders:** Project Team
 **Context:** Adding AI-powered rule definition and test generation to rlsify
+
+> **Note:** This ADR describes the AI Expression Builder for refining individual USING/WITH CHECK expressions.
+> For the AI Full Policy Generator that creates complete policies from scratch, see [ADR 003](./003-ai-full-policy-generation.md).
 
 ## Context and Problem Statement
 

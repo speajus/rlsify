@@ -53,13 +53,10 @@ services:
     volumes:
       # Mount source code for hot reload in development
       - ./packages:/app/packages:cached
-      - ./proto:/app/proto:cached
       - ./package.json:/app/package.json:ro
       - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
       - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
       - ./tsconfig.base.json:/app/tsconfig.base.json:ro
-      - ./buf.yaml:/app/buf.yaml:ro
-      - ./buf.gen.yaml:/app/buf.gen.yaml:ro
       # Node modules cache
       - service_node_modules:/app/node_modules
     depends_on:
@@ -74,7 +71,7 @@ services:
       start_period: 40s
     networks:
       - rlsify-network
-    command: sh -c "cd /app && pnpm install && pnpm run buf:generate && pnpm --filter @speajus/rlsify-types build && pnpm --filter @speajus/rlsify-core build && cd packages/service && pnpm run dev"
+    command: sh -c "cd /app && pnpm install && pnpm --filter @speajus/rlsify-types build && pnpm --filter @speajus/rlsify-core build && cd packages/service && pnpm run dev"
 
   # RLSify UI (Development mode with Vite hot reload)
   ui:

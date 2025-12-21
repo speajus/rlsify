@@ -2,6 +2,8 @@
  * Utility functions
  */
 
+export * from './guards.js';
+
 /**
  * Escape SQL identifier (table/column names)
  */

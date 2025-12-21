@@ -21,6 +21,10 @@
     "dist"
   ],
   "scripts": {
+    "buf:generate": "buf generate",
+    "buf:lint": "buf lint",
+    "buf:format": "buf format -w",
+    "prebuild": "pnpm run buf:generate",
     "build": "tsup",
     "dev": "tsup --watch",
     "clean": "rm -rf dist *.tsbuildinfo src/gen",
@@ -41,8 +45,9 @@
     "@connectrpc/connect": "^2.1.0"
   },
   "devDependencies": {
-    "tsup": "^8.0.1",
+    "@bufbuild/buf": "^1.50.0",
+    "@bufbuild/protoc-gen-es": "^2.2.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.3.3"
   }
 }
-

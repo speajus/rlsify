@@ -13,15 +13,12 @@ ENV NODE_ENV=development
 # Copy all files needed for build
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.base.json ./
-COPY buf.yaml buf.gen.yaml ./
-COPY proto ./proto
 COPY packages ./packages
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Generate protobuf types and build dependencies
-RUN pnpm run buf:generate
+# Build dependencies (buf:generate is now part of types prebuild)
 RUN pnpm --filter @speajus/rlsify-types build && pnpm --filter @speajus/rlsify-core build
 
 # Expose gRPC service port
@@ -36,15 +33,12 @@ FROM base AS builder
 # Copy all files needed for build
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.base.json ./
-COPY buf.yaml buf.gen.yaml ./
-COPY proto ./proto
 COPY packages ./packages
 
 # Install all dependencies (including devDependencies needed for build)
 RUN pnpm install --frozen-lockfile
 
-# Generate protobuf types and build all packages
-RUN pnpm run buf:generate
+# Build all packages (buf:generate is now part of types prebuild)
 ENV NODE_ENV=production
 RUN pnpm -r build
 

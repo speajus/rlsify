@@ -6,6 +6,8 @@ import type { Pool } from 'pg';
 import { create, type JsonObject } from '@bufbuild/protobuf';
 import type { ServiceImpl } from '@connectrpc/connect';
 import {
+  hasKeyOf,
+  isFunction,
   policyValidatorBlob,
   type PolicyValidator,
 } from '@speajus/rlsify-core';
@@ -38,6 +40,8 @@ import {
   GeneratePolicyResponseSchema,
   GenerateTestsResponseSchema,
   GeneratedTestCaseSchema,
+  GenerateFullPolicyResponseSchema,
+  GeneratedPolicyDefinitionSchema,
   type PreviewPoliciesRequest,
   type ValidateConfigRequest,
   type ApplyPoliciesRequest,
@@ -53,6 +57,7 @@ import {
   type ListTestCaseTablesRequest,
   type GeneratePolicyRequest,
   type GenerateTestsRequest,
+  type GenerateFullPolicyRequest,
   type SavedTestCase,
 } from '@speajus/rlsify-types';
 import { tryParseSqlExpression } from '@speajus/rlsify-core';
@@ -60,6 +65,10 @@ import { tryParseSqlExpression } from '@speajus/rlsify-core';
 function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
+function asJson(value: unknown) {
+    if (hasKeyOf(value, 'toJson', isFunction))
+    return value?.toJson?.() ?? value;
+  }
 
 export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto> {
   private pool: Pool;
@@ -929,10 +938,11 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
     return create(ListTestCaseTablesResponseSchema, { tables });
   }
 
+  
   async generatePolicy(request: GeneratePolicyRequest) {
     const { generatePolicyExpression } = await import('./auggie-service.js');
 
-    const tableSchema = request.tableSchema ? (request.tableSchema.toJson() as Record<string, unknown>) : undefined;
+    const tableSchema = request.tableSchema ? (asJson(request.tableSchema) ?? {}) as Record<string, unknown> : request.tableSchema;
     const result = await generatePolicyExpression({
       apiKey: request.apiKey,
       prompt: request.prompt,
@@ -952,8 +962,8 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
   async generateTests(request: GenerateTestsRequest) {
     const { generatePolicyTests } = await import('./auggie-service.js');
 
-    const policyExpression = request.policyExpression ? (request.policyExpression.toJson() as Record<string, unknown>) : undefined;
-    const tableSchema = request.tableSchema ? (request.tableSchema.toJson() as Record<string, unknown>) : undefined;
+    const policyExpression = request.policyExpression ? (asJson(request.policyExpression) ?? {}) as Record<string, unknown> : undefined;
+    const tableSchema = request.tableSchema ? (asJson(request.tableSchema) ?? {}) as Record<string, unknown> : undefined;
 
     const result = await generatePolicyTests({
       apiKey: request.apiKey,
@@ -976,18 +986,50 @@ export class PolicyServiceImpl implements ServiceImpl<typeof PolicyServiceProto>
 
     const tests = result.map(test =>
       create(GeneratedTestCaseSchema, {
-        testName: test.testName,
-        description: test.description,
-        userId: test.userId,
-        role: test.role,
-        claims: test.claims ? (test.claims as JsonObject) : undefined,
+        testName: test.testName!,
+        description: test.description ?? '',
+        userId: test.userId!,
+        role: test.role!,
+        claims: test.claims ? (test.claims as JsonObject) : {},
         operation: operationMap[test.operation] || 0,
         expectedResult: test.expectedResult,
-        testData: test.testData ? (test.testData as JsonObject) : undefined,
+        testData: test.testData ? (test.testData as JsonObject) : {},
       })
     );
 
     return create(GenerateTestsResponseSchema, { tests });
+  }
+
+  async generateFullPolicy(request: GenerateFullPolicyRequest) {
+    const { generateFullPolicy } = await import('./auggie-service.js');
+
+    const tableSchema = request.tableSchema ? (asJson(request.tableSchema)) as Record<string, unknown>: undefined;
+
+    const result = await generateFullPolicy({
+      apiKey: request.apiKey,
+      prompt: request.prompt,
+      tableName: request.tableName,
+      ...(tableSchema && { tableSchema }),
+      existingPolicies: request.existingPolicies,
+      ...(request.model && { model: request.model }),
+      ...(request.apiUrl && { apiUrl: request.apiUrl }),
+    });
+
+    const policies = result.policies.map(policy =>
+      create(GeneratedPolicyDefinitionSchema, {
+        name: policy.name,
+        command: policy.command,
+        description: policy.description,
+        roles: policy.roles || [],
+        usingExpression: (policy.usingExpression ?? {}) as JsonObject,
+        withCheckExpression: policy.withCheckExpression ? (policy.withCheckExpression as JsonObject) : {},
+      })
+    );
+
+    return create(GenerateFullPolicyResponseSchema, {
+      policies,
+      explanation: result.explanation,
+    });
   }
 }
 

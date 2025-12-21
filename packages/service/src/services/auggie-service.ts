@@ -61,20 +61,51 @@ const generatePolicyTool = tool({
 });
 
 /**
+ * Tool for generating complete policy definitions
+ *
+ * This tool generates a complete PolicyDefinition with all fields:
+ * name, command, description, roles, usingExpression, withCheckExpression
+ */
+const generateFullPolicyTool = tool({
+  description: `Generate a complete RLS policy definition with all fields from a natural language description.
+
+  This tool generates:
+  - Policy name following convention: {table}_{command}_{purpose}
+  - Appropriate command(s) based on the description
+  - Human-readable description
+  - Suitable roles (authenticated, public, service_role, etc.)
+  - Complete USING and WITH CHECK expressions
+
+  Call this tool with all fields populated based on the user's natural language request.`,
+  parameters: z.object({
+    name: z.string().describe('Policy name following convention: {table}_{command}_{purpose}, e.g., users_select_own'),
+    command: z.array(z.enum(['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'ALL']))
+      .describe('SQL command(s) this policy applies to'),
+    description: z.string().describe('Human-readable explanation of what this policy does'),
+    roles: z.array(z.string()).optional()
+      .describe('PostgreSQL roles this policy applies to (e.g., authenticated, public)'),
+    usingExpression: z.record(z.string(), z.any())
+      .describe('JSON expression for USING clause (for SELECT, UPDATE, DELETE)'),
+    withCheckExpression: z.record(z.string(), z.any()).optional()
+      .describe('JSON expression for WITH CHECK clause (for INSERT, UPDATE)'),
+  }),
+  execute: async (input) => JSON.stringify(input, null, 2),
+});
+
+/**
  * Tool for generating test cases
  */
 const generateTestTool = tool({
-  name: 'generate_policy_test',
   description: 'Generate a test case for an RLS policy',
-  inputSchema: z.object({
+  parameters: z.object({
     testName: z.string().describe('Descriptive name for the test'),
     description: z.string().optional().describe('What this test validates'),
     userId: z.string().describe('User ID for the test context'),
     role: z.string().optional().describe('User role'),
-    claims: z.object({}).passthrough().optional().describe('Additional JWT claims'),
+    claims: z.record(z.string(), z.any()).optional().describe('Additional JWT claims'),
     operation: z.enum(['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'ALL']).describe('SQL operation to test'),
     expectedResult: z.enum(['allowed', 'denied']).describe('Expected test outcome'),
-    testData: z.object({}).passthrough().optional().describe('Row data for the test'),
+    testData: z.record(z.string(), z.any()).optional().describe('Row data for the test'),
   }),
   execute: async (input) => JSON.stringify(input, null, 2),
 });
@@ -108,6 +139,7 @@ async function createAuggieClient(config: AuggieConfig): Promise<Auggie> {
     const clientConfig: any = {
       tools: {
         generate_rls_policy: generatePolicyTool,
+        generate_full_policy: generateFullPolicyTool,
         generate_policy_test: generateTestTool,
       },
       // Let the AI decide when to use tools
@@ -243,6 +275,164 @@ Generate the policy expression as a JSON object and call the generate_rls_policy
     };
   } catch (error) {
     console.error('Error generating policy:', error);
+    throw error;
+  } finally {
+    await client.close();
+  }
+}
+
+// ============================================================================
+// Full Policy Generation
+// ============================================================================
+
+export interface GenerateFullPolicyOptions {
+  apiKey: string;
+  apiUrl?: string;
+  prompt: string;
+  tableName: string;
+  tableSchema?: Record<string, unknown>;
+  existingPolicies?: string[];
+  model?: string;
+}
+
+export interface GeneratedPolicyDefinition {
+  name: string;
+  command: string[];
+  description: string;
+  roles?: string[];
+  usingExpression: Record<string, unknown>;
+  withCheckExpression?: Record<string, unknown>;
+}
+
+export interface GenerateFullPolicyResult {
+  policies: GeneratedPolicyDefinition[];
+  explanation: string;
+}
+
+/**
+ * Generate a complete policy definition from a natural language prompt
+ */
+export async function generateFullPolicy(
+  options: GenerateFullPolicyOptions
+): Promise<GenerateFullPolicyResult> {
+  const client = await createAuggieClient({
+    apiKey: options.apiKey,
+    ...(options.apiUrl && { apiUrl: options.apiUrl }),
+    ...(options.model && { model: options.model })
+  });
+
+  try {
+    // Build context for the AI
+    const context = buildFullPolicyContext(options);
+    const fullPrompt = `${context}
+
+## User Request
+${options.prompt}
+
+IMPORTANT: You MUST call the generate_full_policy tool for each policy. Do NOT respond with text explanations.
+Call the tool immediately with the policy definition. If multiple policies are needed, call the tool multiple times.`;
+
+    console.log('Sending full policy prompt to Auggie:', fullPrompt.substring(0, 300) + '...');
+
+    const response = await client.prompt(fullPrompt);
+
+    console.log('Auggie full policy response:', JSON.stringify(response, null, 2));
+    console.log('Response type:', typeof response);
+
+    // The Auggie SDK returns an object with text and toolCalls properties
+    // Check if response has toolCalls (structured response from SDK)
+    if (typeof response === 'object' && response !== null && 'toolCalls' in response) {
+      const toolCalls = (response as any).toolCalls;
+      const text = (response as any).text || '';
+
+      console.log('Found tool calls:', toolCalls);
+
+      if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+        // Extract policies from tool calls
+        const policies = toolCalls
+          .filter((call: any) => call.toolName === 'generate_full_policy')
+          .map((call: any) => ({
+            name: call.args.name,
+            command: Array.isArray(call.args.command) ? call.args.command : [call.args.command],
+            description: call.args.description,
+            roles: call.args.roles || [],
+            usingExpression: call.args.usingExpression,
+            withCheckExpression: call.args.withCheckExpression,
+          }));
+
+        if (policies.length > 0) {
+          return {
+            policies,
+            explanation: text || 'Policy generated successfully',
+          };
+        }
+      }
+    }
+
+    // Fallback: Try to parse as JSON string (for backwards compatibility)
+    const responseStr = typeof response === 'string' ? response : JSON.stringify(response);
+
+    // Check if response contains text (AI didn't call the tool)
+    if (typeof response === 'string' || (typeof response === 'object' && 'text' in response && !(response as any).toolCalls)) {
+      const text = typeof response === 'string' ? response : (response as any).text || '';
+
+      console.warn('AI responded with text instead of calling tool. Text:', text.substring(0, 200));
+
+      // Try to extract JSON objects from the text
+      const jsonMatches = text.matchAll(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
+      const extractedPolicies: any[] = [];
+
+      for (const match of jsonMatches) {
+        try {
+          const parsed = JSON.parse(match[0]);
+          if (parsed.name && parsed.command && parsed.usingExpression) {
+            extractedPolicies.push({
+              name: parsed.name,
+              command: Array.isArray(parsed.command) ? parsed.command : [parsed.command],
+              description: parsed.description || '',
+              roles: parsed.roles || ['authenticated'],
+              usingExpression: parsed.usingExpression,
+              withCheckExpression: parsed.withCheckExpression,
+            });
+          }
+        } catch (e) {
+          // Skip invalid JSON
+        }
+      }
+
+      if (extractedPolicies.length > 0) {
+        console.log('Extracted policies from text response:', extractedPolicies.length);
+        return {
+          policies: extractedPolicies,
+          explanation: text.split('\n')[0] || 'Policies extracted from AI response',
+        };
+      }
+    }
+
+    try {
+      const parsed = JSON.parse(responseStr);
+
+      // Handle single policy or array of policies
+      const policies = Array.isArray(parsed) ? parsed : [parsed];
+
+      return {
+        policies: policies.map((p: any) => ({
+          name: p.name,
+          command: Array.isArray(p.command) ? p.command : [p.command],
+          description: p.description,
+          roles: p.roles || [],
+          usingExpression: p.usingExpression,
+          withCheckExpression: p.withCheckExpression,
+        })),
+        explanation: parsed.explanation || parsed.description || 'Policy generated successfully',
+      };
+    } catch (parseError) {
+      console.error('Failed to parse full policy response:', parseError);
+
+      throw new Error(`Failed to parse AI response. The AI did not call the generate_full_policy tool properly. Response: ${responseStr.substring(0, 500)}`);
+    }
+  } catch (error) {
+    console.error('Error generating full policy:', error);
     throw error;
   } finally {
     await client.close();
@@ -592,6 +782,109 @@ User can see public items or items they own:
 }
 
 CRITICAL: You must actually CALL the generate_rls_policy tool with the JSON expression. Do not just describe the policy in text.`;
+
+  return context;
+}
+
+function buildFullPolicyContext(options: GenerateFullPolicyOptions): string {
+  let context = `You are an expert at generating PostgreSQL Row-Level Security (RLS) policies.
+
+## Your Task
+Generate a COMPLETE policy definition from the user's natural language description.
+
+## Policy Naming Convention
+- Format: {table}_{command}_{purpose}
+- Examples: users_select_own, posts_insert_authenticated, teams_update_members
+- Use lowercase with underscores
+- Be descriptive but concise
+
+## Command Selection
+- SELECT: For read/view operations
+- INSERT: For create operations
+- UPDATE: For modify/edit operations
+- DELETE: For remove operations
+- ALL: Only when explicitly requested or for admin policies
+
+## Role Assignment
+- authenticated: For logged-in users
+- public: For anonymous access
+- service_role: For backend/admin operations
+- Custom roles: When mentioned in the description
+
+## Expression Generation
+Use rlsify's JSON expression format (same as generate_rls_policy tool):
+- User ownership: { "user_id": { "_eq": { "_session_var": "user_id" } } }
+- Team membership: Use _exists with team_members join
+- Role-based: { "_session_var": "role", "_eq": "admin" }
+- Combine with _and, _or, _not
+
+## Table Context
+Table: ${options.tableName}`;
+
+  if (options.tableSchema) {
+    context += `\nSchema: ${JSON.stringify(options.tableSchema, null, 2)}`;
+  }
+
+  if (options.existingPolicies && options.existingPolicies.length > 0) {
+    context += `\n\n## Existing Policies\n${options.existingPolicies.join(', ')}`;
+    context += `\nAvoid creating duplicate policy names. If a similar policy exists, use a different suffix.`;
+  }
+
+  context += `
+
+## Multiple Policies
+If the description implies CRUD operations (e.g., "users can manage their posts", "users can CRUD"),
+generate separate policies for each command (SELECT, INSERT, UPDATE, DELETE).
+
+For example, "Users can manage their own posts" should generate:
+1. posts_select_own (SELECT)
+2. posts_insert_own (INSERT)
+3. posts_update_own (UPDATE)
+4. posts_delete_own (DELETE)
+
+## Examples
+
+**Prompt:** "Users can only see their own posts"
+**Output:**
+{
+  "name": "posts_select_own",
+  "command": ["SELECT"],
+  "description": "Allow users to view only their own posts",
+  "roles": ["authenticated"],
+  "usingExpression": { "user_id": { "_eq": { "_session_var": "user_id" } } }
+}
+
+**Prompt:** "Admins can do anything, regular users can only read"
+**Output:** Two policies:
+1. {
+  "name": "posts_all_admin",
+  "command": ["ALL"],
+  "description": "Allow admins full access to all posts",
+  "roles": ["authenticated"],
+  "usingExpression": { "_session_var": "role", "_eq": "admin" }
+}
+2. {
+  "name": "posts_select_users",
+  "command": ["SELECT"],
+  "description": "Allow regular users to read all posts",
+  "roles": ["authenticated"],
+  "usingExpression": { "_session_var": "role", "_eq": "user" }
+}
+
+**Prompt:** "Team members can view and edit team documents"
+**Output:** Two policies with _exists joins:
+1. posts_select_team_members (SELECT)
+2. posts_update_team_members (UPDATE)
+
+## CRITICAL INSTRUCTIONS
+
+1. DO NOT respond with text explanations or descriptions
+2. DO NOT say things like "Let me generate..." or "I need to fix..."
+3. IMMEDIATELY call the generate_full_policy tool for each policy
+4. Call the tool multiple times if multiple policies are needed
+5. The tool call is your ONLY response - no additional text
+
+If you respond with text instead of calling the tool, the request will FAIL.`;
 
   return context;
 }

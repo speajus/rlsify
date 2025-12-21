@@ -388,6 +388,48 @@ message GenerateTestsResponse {
   repeated GeneratedTestCase tests = 1;
 }
 
+// Request to generate a complete policy definition using AI
+message GenerateFullPolicyRequest {
+  // Auggie API token
+  string api_key = 1;
+  // Natural language prompt describing the policy
+  string prompt = 2;
+  // Table name
+  string table_name = 3;
+  // Optional table schema (as JSON)
+  optional google.protobuf.Struct table_schema = 4;
+  // Optional list of existing policy names to avoid duplicates
+  repeated string existing_policies = 5;
+  // Optional AI model to use
+  optional string model = 6;
+  // Optional API URL (tenant URL from auggie token print)
+  optional string api_url = 7;
+}
+
+// A generated policy definition
+message GeneratedPolicyDefinition {
+  // Policy name (e.g., users_select_own)
+  string name = 1;
+  // SQL commands this policy applies to
+  repeated string command = 2;
+  // Human-readable description
+  string description = 3;
+  // PostgreSQL roles (e.g., authenticated, public)
+  repeated string roles = 4;
+  // USING expression (as JSON)
+  google.protobuf.Struct using_expression = 5;
+  // WITH CHECK expression (as JSON, optional)
+  optional google.protobuf.Struct with_check_expression = 6;
+}
+
+// Response with generated complete policy definition(s)
+message GenerateFullPolicyResponse {
+  // Generated policy definitions (may be multiple if CRUD was requested)
+  repeated GeneratedPolicyDefinition policies = 1;
+  // AI explanation of the generated policies
+  string explanation = 2;
+}
+
 // Policy management service
 service PolicyService {
   // Generate SQL preview from configuration
@@ -431,5 +473,8 @@ service PolicyService {
 
   // Generate test cases for a policy using AI
   rpc GenerateTests(GenerateTestsRequest) returns (GenerateTestsResponse);
+
+  // Generate a complete policy definition using AI
+  rpc GenerateFullPolicy(GenerateFullPolicyRequest) returns (GenerateFullPolicyResponse);
 }
 

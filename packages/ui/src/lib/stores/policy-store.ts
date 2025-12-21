@@ -80,6 +80,34 @@ export function addPolicy() {
   }));
 }
 
+/**
+ * Add a complete AI-generated policy to the config
+ * This is used by the AI Full Policy Generator to add policies with all fields populated
+ */
+export function addGeneratedPolicy(policy: PolicyDefinition) {
+  state.update((s) => ({
+    ...s,
+    config: {
+      ...s.config,
+      policies: [...s.config.policies, policy],
+    },
+  }));
+}
+
+/**
+ * Add multiple AI-generated policies at once
+ * This is used when the AI generates multiple policies (e.g., CRUD operations)
+ */
+export function addGeneratedPolicies(policies: PolicyDefinition[]) {
+  state.update((s) => ({
+    ...s,
+    config: {
+      ...s.config,
+      policies: [...s.config.policies, ...policies],
+    },
+  }));
+}
+
 export function removePolicy(index: number) {
   state.update((s) => ({
     ...s,
